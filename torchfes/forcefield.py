@@ -35,10 +35,15 @@ class EvalForcesOnly(nn.Module):
 
     def forward(self, inp: Dict[str, Tensor]):
         pos = inp[p.pos].clone().detach().requires_grad_(True)
-        out = inp.copy()
+        out: Dict[str, Tensor] = inp.copy()
         out[p.pos] = pos
         out = self.evl(out)
         eng_tot = out[p.eng_tot]
-        frc, = torch.autograd.grad(-eng_tot, pos, torch.ones_like(eng_tot))
-        out[p.frc] = frc
-        return {key: val.detach() for key, val in out.items()}
+        frc, = torch.autograd.grad([-eng_tot.sum()], [pos])
+        if frc is None:
+            raise RuntimeError()
+        else:
+            out[p.frc] = frc.detach()
+            for key in out:
+                out[key] = out[key].detach()
+            return out

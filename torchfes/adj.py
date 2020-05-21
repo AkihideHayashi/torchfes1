@@ -1,5 +1,4 @@
-import logging
-from typing import Dict
+from typing import Dict, List
 import torch
 from torch import nn, Tensor
 import pointneighbor as pn
@@ -8,7 +7,12 @@ from pointneighbor import (Coo2BookKeeping, Coo2Cel,
                            Coo2FulSimple, Coo2FulPntSft)
 from . import properties as p
 
-_logger = logging.getLogger(__name__)
+
+def to_list(x):
+    ret: List[int] = []
+    for i in x:
+        ret.append(i.item())
+    return ret
 
 
 class Adjacent(nn.Module):
@@ -25,12 +29,10 @@ class Adjacent(nn.Module):
 
     def forward(self, inp: Dict[str, Tensor]):
         if inp[p.pos] is self.pos and inp[p.cel] is self.cel:
-            _logger.debug('Adjacent: skip')
             return AdjSftSizVecSod(adj=self.adj, sft=self.sft,
-                                   siz=self.siz.tolist(),
+                                   siz=to_list(self.siz),
                                    vec=self.vec, sod=self.sod)
         else:
-            _logger.debug('Adjacent: calc')
             pnt = pn.pnt(cel=inp[p.cel], pbc=inp[p.pbc],
                          pos=inp[p.pos], ent=inp[p.ent])
             pnt_exp = pn.pnt_exp(pnt)

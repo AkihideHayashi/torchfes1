@@ -26,14 +26,39 @@ def update_pos(inp: Dict[str, Tensor], stp: float):
     return out
 
 
+def check(inp, prt):
+    if (inp != inp).any():
+        raise RuntimeError(f'broken. {prt}')
+
+
 def update_global_langevin(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     kbt = out[p.kbt][:, None, None]
     mas = out[p.mas][:, :, None]
     ent = out[p.ent][:, :, None]
     c1 = torch.exp(-out[p.gam_lng] * out[p.dtm] * stp)[:, None, None]
-    c2 = ((torch.tensor(1, device=c1.device) - c1 * c1) * kbt * mas).sqrt()
-    out[p.mom] = (c1 * out[p.mom] + c2 * noise(out[p.frc], ent))
+    check(c1, None)
+    c2 = ((torch.tensor(1.0) - c1 * c1) * kbt * mas).sqrt()
+    try:
+        check(c2, c2)
+    except:
+        print('c1')
+        print(c1)
+        print('c1 * c1')
+        print(c1 * c1)
+        print('1 - c1 * c1')
+        print(torch.tensor(1.0) - c1 * c1)
+        print('1 - (c1 * c1)')
+        print(torch.tensor(1.0) - (c1 * c1))
+        print('(torch.tensor(1.0) - c1 * c1) * kbt * mas')
+        print((torch.tensor(1.0) - c1 * c1) * kbt * mas)
+        print('c2 = ((torch.tensor(1.0) - c1 * c1) * kbt * mas).sqrt()')
+        print(((torch.tensor(1.0) - c1 * c1) * kbt * mas).sqrt())
+        raise
+    n = noise(out[p.frc], ent)
+    check(n, None)
+    out[p.mom] = (c1 * out[p.mom] + c2 * n)
+    check(out[p.mom], None)
     return out
 
 

@@ -1,5 +1,5 @@
 import io
-from typing import Union, Dict, List
+from typing import Union, Dict, List, IO, Any
 from pathlib import Path
 from torch import Tensor
 import numpy as np
@@ -19,7 +19,7 @@ def _make_xyz(sym, elm, pos, ent):
 
 def make_xyz(sym: np.ndarray, inp: Dict[str, Tensor]):
     return [_make_xyz(sym, elm, pos, ent) for elm, pos, ent in
-            zip(inp[p.elm], inp[p.pos], inp[p.ent])]
+            zip(inp[p.elm].cpu(), inp[p.pos].cpu(), inp[p.ent].cpu())]
 
 
 def write_xyz(dir_path: Union[str, Path],
@@ -38,26 +38,22 @@ def write_xyz(dir_path: Union[str, Path],
 
 
 class XYZRecorder:
-    def __init__(self, dir_path: Union[str, Path], sym: List[str], n_bch: int):
+    def __init__(self, dir_path: Union[str, Path], mode: str,
+                 sym: List[str], n_bch: int):
         self.dir_path = Path(dir_path)
-        self.f: List[io.TextIOWrapper] = []
+        self.f: List[IO[Any]] = []
         self.n_bch = n_bch
         self.sym = np.array(sym)
-
-    def clear(self):
-        if self.dir_path.is_dir():
-            for child in self.dir_path.iterdir():
-                child.unlink()
-        else:
+        if not self.dir_path.is_dir():
             self.dir_path.mkdir()
-
-    def __enter__(self):
         for i in range(self.n_bch):
             path = self.dir_path / f'{i}.xyz'
-            self.f.append(open(path, 'a'))
-        return self
+            self.f.append(open(path, mode=mode))
 
     def __exit__(self, *_):
+        self.close()
+
+    def close(self):
         for f in self.f:
             f.close()
         self.f.clear()

@@ -1,11 +1,8 @@
-import logging
 from typing import Dict
 import torch
 from torch import nn, Tensor
 from . import properties as p
 from .adj import Adjacent, AdjSftSizVecSod
-
-_logger = logging.getLogger(__name__)
 
 
 class QuadraticRestraints(nn.Module):
@@ -34,10 +31,13 @@ class QuadraticRestraints(nn.Module):
 
 
 class ClosePenalty(nn.Module):
+    k: Tensor
+    radius: Tensor
+
     def __init__(self, adj: Adjacent, radius, k):
         super().__init__()
-        self.radius = radius
-        self.k = k
+        self.register_buffer('k', k)
+        self.register_buffer('radius', radius)
         self.adj = adj
 
     def forward(self, inp: Dict[str, Tensor]):
@@ -51,7 +51,7 @@ class ClosePenalty(nn.Module):
         R = self.radius[ei] + self.radius[ej]
         mask = dis < R
         if mask.any():
-            _logger.warning('ClosePenalty.')
+            print('ClosePenalty.')
         eng_bnd = k * (dis - R).pow(2) * mask
         n_bch, n_atm = adj.siz
         eng_atm = torch.index_add(

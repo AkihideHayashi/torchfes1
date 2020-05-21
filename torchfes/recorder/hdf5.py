@@ -109,7 +109,7 @@ class HDF5Recorder:
         self.thr[key] = val
 
     def append(self, inp: Dict[str, Tensor]):
-        self._append_trj(inp)
+        self._append_trj({key: val.cpu() for key, val in inp.items()})
 
     def extend(self, inps: List[Dict[str, Tensor]]):
         for inp in inps:
