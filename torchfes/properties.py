@@ -17,6 +17,8 @@ kbt = 'temperatures'
 tim = 'times'
 dtm = 'delta_times'
 
+chg = 'charge'
+
 ads_frq = 'andersen_frequency'
 
 gam_lng = 'langevin_gamma'
