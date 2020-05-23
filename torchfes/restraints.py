@@ -1,8 +1,9 @@
 from typing import Dict
 import torch
 from torch import nn, Tensor
+import pointneighbor as pn
+from .api import pnt_ful
 from . import properties as p
-from .adj import Adjacent, AdjSftSizVecSod
 
 
 class QuadraticRestraints(nn.Module):
@@ -34,18 +35,20 @@ class ClosePenalty(nn.Module):
     k: Tensor
     radius: Tensor
 
-    def __init__(self, adj: Adjacent, radius, k):
+    def __init__(self, adj, radius, k):
         super().__init__()
         self.register_buffer('k', k)
         self.register_buffer('radius', radius)
         self.adj = adj
 
     def forward(self, inp: Dict[str, Tensor]):
-        adj: AdjSftSizVecSod = self.adj(inp)
+        rc = self.radius.max().item() * 2
+        adj: pn.AdjSftSpc = self.adj(pnt_ful(inp))
+        adj, vec_sod = pn.coo2_adj_vec_sod(adj, inp[p.pos], inp[p.cel], rc)
         n, i, j, _ = adj.adj.unbind(0)
         ei = inp[p.elm][n, i]
         ej = inp[p.elm][n, j]
-        sod = adj.sod
+        sod = vec_sod.sod
         dis = sod.sqrt()
         k = self.k[ei] + self.k[ej]
         R = self.radius[ei] + self.radius[ej]
@@ -53,7 +56,7 @@ class ClosePenalty(nn.Module):
         if mask.any():
             print('ClosePenalty.')
         eng_bnd = k * (dis - R).pow(2) * mask
-        n_bch, n_atm = adj.siz
+        n_bch, n_atm, _ = adj.spc.size()
         eng_atm = torch.index_add(
             torch.zeros((n_bch * n_atm)).to(inp[p.pos]),
             0, n * n_atm + i, eng_bnd
