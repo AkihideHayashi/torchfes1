@@ -2,6 +2,38 @@ from typing import Union, List
 import numpy as np
 import torch
 from torch import Tensor
+from ase import Atoms
+from . import properties as p
+
+
+def sym_to_elm(symbols: Union[str, List, np.ndarray],
+               order: Union[np.ndarray, List[str]]):
+    """Transform symbols to elements."""
+    if not isinstance(order, list):
+        order = order.tolist()
+    if not isinstance(symbols, (str, list)):
+        symbols = symbols.tolist()
+    if isinstance(symbols, str):
+        if symbols in order:
+            return order.index(symbols)
+        else:
+            return -1
+    else:
+        return np.array([sym_to_elm(s, order) for s in symbols])
+
+
+def ase_to_inp(atoms: Atoms, order: List[str]):
+    pos = np.array(atoms.positions).tolist()
+    cel = np.array(atoms.cell).tolist()
+    sym = atoms.get_chemical_symbols()
+    pbc = np.array([True, True, True])
+    elm = sym_to_elm(sym, order)
+    return {
+        p.pos: torch.tensor(pos),
+        p.cel: torch.tensor(cel),
+        p.pbc: torch.tensor(pbc),
+        p.elm: torch.tensor(elm)
+    }
 
 
 def pad_torch(tensor: Tensor, size: List[int], value: float):
