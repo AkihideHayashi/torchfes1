@@ -26,7 +26,7 @@ def write_xyz(dir_path: Union[str, Path],
               sym: np.ndarray, inp: Dict[str, Tensor]):
     dir_path = Path(dir_path)
     if not dir_path.is_dir():
-        dir_path.mkdir()
+        dir_path.mkdir(parents=True)
     for i, xyz in enumerate(make_xyz(np.array(sym), inp)):
         path = dir_path / (str(i) + '.xyz')
         if path.is_file():
@@ -45,7 +45,7 @@ class XYZRecorder:
         self.n_bch = n_bch
         self.sym = np.array(sym)
         if not self.dir_path.is_dir():
-            self.dir_path.mkdir()
+            self.dir_path.mkdir(parents=True)
         for i in range(self.n_bch):
             path = self.dir_path / f'{i}.xyz'
             self.f.append(open(path, mode=mode))
