@@ -34,9 +34,9 @@ def main1():
     inp = make_inp()
     inp = evl(inp)
     # opt = LineSearchOptimizer(evl, CG(PRPCG()), sampler=LogSmapler(0.1, 0.5), condition=WolfeCondition(0.4, 0.6))
-    # opt = LineSearchNewtonCG(evl, False)
+    opt = jit.script(LineSearchNewtonCG(evl, False))
     # opt = PQF(evl, a0=1.0, n_min=1, f_a=0.9, f_inc=1.1, f_dec=0.9, dtm_max=0.1)
-    opt = LineSearchOptimizer(evl, LBFGS(0.1))
+    # opt = LineSearchOptimizer(evl, LBFGS(0.1))
     print(inp[p.pos])
     for _ in range(100):
         inp = opt(inp)

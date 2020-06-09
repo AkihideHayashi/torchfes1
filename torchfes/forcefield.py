@@ -1,8 +1,11 @@
+import warnings
 from typing import Dict, List
 import torch
 from torch import nn, Tensor
+from .utils import detach_, grad
 from . import properties as p
 from .api import Energies
+from .general import PosEngFrc
 
 
 class EvalEnergies(nn.Module):
@@ -33,32 +36,58 @@ class EvalEnergiesForces(nn.Module):
         super().__init__()
         self.eng = EvalEnergies(mdl, res)
 
-    def forward(self, inp: Dict[str, Tensor],
-                requires_frc: bool = True,
-                retain_graph: bool = False, create_graph: bool = False,
-                detach: bool = True):
+    def forward(self, inp: Dict[str, Tensor], frc_pos: bool = True,
+                frc_cel: bool = False, frc_grd: bool = False):
         pos = inp[p.pos]
-        if requires_frc and not pos.requires_grad:
-            pos.requires_grad_(True)
+        cel = inp[p.cel]
+        if frc_pos and not pos.requires_grad:
+            pos.requires_grad_()
+        if frc_cel and not cel.requires_grad:
+            cel.requires_grad_()
         out = self.eng(inp)
-        if requires_frc:
-            eng_tot = out[p.eng_tot]
-            frc, = torch.autograd.grad([-eng_tot.sum()], [pos],
-                                       retain_graph=retain_graph,
-                                       create_graph=create_graph)
-            if frc is None:
-                raise RuntimeError
-            out[p.frc] = frc
-        if detach:
-            for key in out.keys():
-                out[key] = out[key].detach()
+        eng_tot = out[p.eng_tot]
+        one = torch.ones_like(eng_tot)
+        if frc_pos:
+            out[p.frc] = grad(-eng_tot, pos, one, frc_grd)
+        if frc_cel:
+            out[p.frc_cel] = grad(-eng_tot, cel, one, frc_grd)
+        if not frc_grd:
+            detach_(out)
         return out
+
+
+class EvalEnergiesForcesGeneral(nn.Module):
+    def __init__(self, mdl: nn.Module, res: List[nn.Module], gen: nn.Module):
+        super().__init__()
+        self.eng = EvalEnergies(mdl, res)
+        self.gen = gen
+
+    def forward(self, env: Dict[str, Tensor], pos: Tensor,
+                frc: bool = True, frc_grd: bool = False) -> PosEngFrc:
+        if frc and not pos.requires_grad:
+            pos = pos.clone().requires_grad_()
+        inp = self.gen(env, pos)
+        out = self.eng(inp)
+        eng_tot = out[p.eng_tot]
+        one = torch.ones_like(eng_tot)
+        if frc:
+            frc_ = grad(-eng_tot, pos, one, frc_grd)
+        else:
+            frc_ = torch.zeros_like(pos)
+        if not frc_grd:
+            detach_(out)
+            return PosEngFrc(pos=pos.clone().detach(),
+                             eng=eng_tot.clone().detach().unsqueeze(-1),
+                             frc=frc_.clone().detach())
+        else:
+            return PosEngFrc(pos=pos, eng=eng_tot.unsqueeze(-1), frc=frc_)
 
 
 class EvalForcesOnly(nn.Module):
     def __init__(self, evl):
         super().__init__()
         self.evl = evl
+        warnings.warn("EvalForcesOnly is obsolete.")
 
     def forward(self, inp: Dict[str, Tensor]):
         pos = inp[p.pos].clone().detach().requires_grad_(True)

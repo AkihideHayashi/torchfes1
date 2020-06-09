@@ -37,7 +37,7 @@ class LineSearchNewtonCG(nn.Module):
         code: PosEngFrc = self.encoder(inp)
         pos = code.pos.clone().detach().requires_grad_(True)
         out: Dict[str, Tensor] = self.decoder(inp, pos)
-        out = self.evl(out, retain_graph=True, create_graph=True, detach=False)
+        out = self.evl(out, frc_pos=True, frc_grd=True)
         eng = out[p.eng_tot]
         jac, = torch.autograd.grad(
             [eng.sum()], [pos], retain_graph=True, create_graph=True)
