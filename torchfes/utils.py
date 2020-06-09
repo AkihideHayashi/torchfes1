@@ -22,6 +22,7 @@ def sym_to_elm(symbols: Union[str, List, np.ndarray],
         return np.array([sym_to_elm(s, order) for s in symbols])
 
 
+# TODO: add mas
 def _ase_to_inp_inner(atoms: Atoms, order: List[str]):
     pos = np.array(atoms.positions).tolist()
     cel = np.array(atoms.cell).tolist()
@@ -42,7 +43,7 @@ def ase_to_inp(atoms_list: List[Atoms], order: List[str]):
     cel = torch.stack([inp[p.cel] for inp in inp_lst])
     elm = pad_cat_torch([inp[p.elm][None, :] for inp in inp_lst], -1)
     pbc = torch.stack([inp[p.pbc] for inp in inp_lst])
-    return { p.pos: pos, p.cel: cel, p.elm: elm, p.pbc: pbc }
+    return {p.pos: pos, p.cel: cel, p.elm: elm, p.pbc: pbc}
 
 
 def pad_torch(tensor: Tensor, size: List[int], value: float):

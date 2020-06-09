@@ -2,9 +2,9 @@ from typing import Dict
 import torch
 from torch import nn, Tensor
 from .unified import update_mom, update_pos, update_tim
-from .bme import Shake, BMEV, BMEVariables, Rattle
-from . import properties as p
-from .forcefield import EvalForcesOnly
+from ..fes.bme import Shake, BMEV, BMEVariables, Rattle
+from .. import properties as p
+from ..opt.fire import FIRE
 
 
 class PQP(nn.Module):
@@ -35,6 +35,41 @@ class PQ(nn.Module):
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
         out = self.evl(out)
+        return out
+
+
+class PQF(nn.Module):
+    """Leap frog FIRE."""
+
+    def __init__(self, evl: nn.Module, a0, n_min, f_a, f_inc, f_dec, dtm_max):
+        super().__init__()
+        self.evl = evl
+        self.fire = FIRE(a0, n_min, f_a, f_inc, f_dec, dtm_max)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = update_mom(inp, 1.0)
+        out = update_pos(out, 1.0)
+        out = update_tim(out, 1.0)
+        out = self.evl(out)
+        out = self.fire(out)
+        return out
+
+
+class PQPF(nn.Module):
+    """NVE Velocity Verlet"""
+
+    def __init__(self, evl: nn.Module, a0, n_min, f_a, f_inc, f_dec, dtm_max):
+        super().__init__()
+        self.evl = evl
+        self.fire = FIRE(a0, n_min, f_a, f_inc, f_dec, dtm_max)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = update_mom(inp, 0.5)
+        out = update_pos(out, 1.0)
+        out = update_tim(out, 1.0)
+        out = self.evl(out)
+        out = update_mom(out, 0.5)
+        out = self.fire(out)
         return out
 
 

@@ -28,6 +28,33 @@ class EvalEnergies(nn.Module):
         return out
 
 
+class EvalEnergiesForces(nn.Module):
+    def __init__(self, mdl: nn.Module, res: List[nn.Module]):
+        super().__init__()
+        self.eng = EvalEnergies(mdl, res)
+
+    def forward(self, inp: Dict[str, Tensor],
+                requires_frc: bool = True,
+                retain_graph: bool = False, create_graph: bool = False,
+                detach: bool = True):
+        pos = inp[p.pos]
+        if requires_frc and not pos.requires_grad:
+            pos.requires_grad_(True)
+        out = self.eng(inp)
+        if requires_frc:
+            eng_tot = out[p.eng_tot]
+            frc, = torch.autograd.grad([-eng_tot.sum()], [pos],
+                                       retain_graph=retain_graph,
+                                       create_graph=create_graph)
+            if frc is None:
+                raise RuntimeError
+            out[p.frc] = frc
+        if detach:
+            for key in out.keys():
+                out[key] = out[key].detach()
+        return out
+
+
 class EvalForcesOnly(nn.Module):
     def __init__(self, evl):
         super().__init__()

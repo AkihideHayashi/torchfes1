@@ -1,8 +1,8 @@
 from typing import Dict
 import torch
 from torch import nn, Tensor
-from . import properties as p
-from .functional import noise
+from .. import properties as p
+from ..functional import noise
 
 
 def update_tim(inp: Dict[str, Tensor], stp: float):

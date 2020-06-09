@@ -1,7 +1,7 @@
-from typing import Dict
 import math
+import warnings
 import torch
-from torch import Tensor, nn
+from torch import Tensor
 from pointneighbor import functional as fn
 
 
@@ -14,6 +14,7 @@ def _get_sft_xyz(cel_mat: Tensor, cel_inv: Tensor, pbc: Tensor, rc: float):
 
 
 def min_vec(cel: Tensor, pbc: Tensor, pos: Tensor, idx: Tensor) -> Tensor:
+    warnings.warn('min_vec is not valified after changing pointneighbor.')
     cel_inv = cel.inverse()
     i, j = idx.t().unbind(0)
     rri = pos[:, i, :]
@@ -27,14 +28,3 @@ def min_vec(cel: Tensor, pbc: Tensor, pos: Tensor, idx: Tensor) -> Tensor:
     idx0 = torch.arange(rrij.size(0), device=rrij.device)[:, None]
     idx1 = torch.arange(rrij.size(1), device=rrij.device)[None, :]
     return rrij[idx0, idx1, argmin]
-
-
-class ColVarSft(nn.Module):
-    def __init__(self, col, val):
-        super().__init__()
-        self.col = col
-        self.val = val
-
-    def forward(self, inp: Dict[str, Tensor]):
-        col = self.col(inp)
-        return col - self.val

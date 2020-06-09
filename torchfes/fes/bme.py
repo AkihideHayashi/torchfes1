@@ -1,12 +1,8 @@
-import logging
 from itertools import count
 from typing import Dict, List, NamedTuple
 from torch import nn, Tensor
 import torch
-from . import properties as p
-
-
-_logger = logging.getLogger(__name__)
+from .. import properties as p
 
 
 class BMEV(NamedTuple):
@@ -81,10 +77,11 @@ def rattle_objective(mom: Tensor, mas: Tensor, dtm: Tensor,
 
 
 class Rattle(nn.Module):
-    def __init__(self, con: nn.Module, tol: float):
+    def __init__(self, con: nn.Module, tol: float, debug=None):
         super().__init__()
         self.con = con
         self.tol = tol
+        self.debug = debug
 
     def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor):
         mom = inp[p.mom].clone()
@@ -103,17 +100,20 @@ class Rattle(nn.Module):
             jac = jacobian(con, lmd)
             dlt, _ = torch.solve(con[:, :, None], jac)
             lmd = (lmd.detach() - dlt.squeeze(2).detach())
-            _logger.debug('Rattle step %d.', i)
+            if self.debug is not None:
+                print(f'Rattle step {i}', file=self.debug)
         out[p.mom].detach_()
-        _logger.debug('Rattle converged after %d steps.', i)
+        if self.debug is not None:
+            print(f'Rattle converged after {i} steps.', file=self.debug)
         return out, lmd
 
 
 class Shake(nn.Module):
-    def __init__(self, con: nn.Module, tol: float):
+    def __init__(self, con: nn.Module, tol: float, debug=None):
         super().__init__()
         self.con = con
         self.tol = tol
+        self.debug = debug
 
     def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor):
         pos = inp[p.pos].clone()
@@ -134,8 +134,10 @@ class Shake(nn.Module):
             jac = jacobian(con, lmd)
             dlt, _ = torch.solve(con[:, :, None], jac)
             lmd = (lmd.detach() - dlt.squeeze(2).detach())
-            _logger.debug('Shake step %d.', i)
+            if self.debug is not None:
+                print(f'Shake step {i}', file=self.debug)
         out[p.pos].detach_()
         out[p.mom].detach_()
-        _logger.debug('Shake converged after %d steps.', i)
+        if self.debug is not None:
+            print(f'Shake converged after {i} steps.')
         return out, lmd

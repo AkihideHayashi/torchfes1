@@ -51,6 +51,10 @@ def add_global_nose_hoover_chain(inp: Dict[str, Tensor], tau_nhc: Tensor):
 
 
 def init_nvt(inp: Dict[str, Tensor], mas: Tensor, dtm: Tensor, kbt: Tensor):
+    """
+    Parameters:
+        mas: mas[elm] is mass
+    """
     mas_ = mas[inp[p.elm]]
     mom = fn.maxwell(inp[p.pos], inp[p.ent], mas_, kbt)
     tim = torch.zeros_like(dtm)
