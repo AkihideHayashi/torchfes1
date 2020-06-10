@@ -1,11 +1,13 @@
 import warnings
 from typing import Dict, List
+
 import torch
-from torch import nn, Tensor
-from .utils import detach_, grad
+from torch import Tensor, nn
+
 from . import properties as p
 from .api import Energies
 from .general import PosEngFrc
+from .utils import detach_, grad
 
 
 class EvalEnergies(nn.Module):

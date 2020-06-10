@@ -1,9 +1,12 @@
 from typing import Dict
+
 import torch
-from torch import nn, Tensor
+from torch import Tensor, nn
+
 import pointneighbor as pn
-from .api import pnt_ful
+
 from . import properties as p
+from .api import pnt_ful
 
 
 class QuadraticRestraints(nn.Module):

@@ -1,5 +1,6 @@
 """Conjugate gradient linear equation solver."""
 from typing import NamedTuple
+
 import torch
 from torch import Tensor
 

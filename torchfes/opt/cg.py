@@ -1,7 +1,9 @@
-from typing import List, Dict
+from typing import Dict
+
 import torch
-from torch import nn, Tensor
-from ..general import PosEngFrc, PosEngFrcStorage
+from torch import Tensor, nn
+
+from ..general import PosEngFrc, PosEngFrcStorage, where_pef
 
 
 class FRCG(nn.Module):
@@ -42,13 +44,16 @@ class CG(nn.Module):
         pef = self.evl(env, pos)
         self.old(pef)
         self.vec = pef.frc
-        return pef.frc, pef
+        return pef, pef.frc
 
-    def forward(self, pef: PosEngFrc, _: Dict[str, Tensor]):
+    def peek(self):
+        return self.vec
+
+    def forward(self, pef: PosEngFrc, _: Dict[str, Tensor], flt: Tensor):
         new = pef
         old: PosEngFrc = self.old()
         beta = self.cg_type(new.frc, old.frc, self.vec)
         vec = new.frc + beta[:, None] * self.vec
-        self.vec = vec
-        self.old(new)
+        self.vec = torch.where(flt, vec, self.vec)
+        self.old(where_pef(flt, new, old))
         return vec

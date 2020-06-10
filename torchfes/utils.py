@@ -1,8 +1,10 @@
-from typing import Union, List, Dict, Optional
+from typing import Dict, List, Optional, Union
+
 import numpy as np
 import torch
-from torch import Tensor
 from ase import Atoms
+from torch import Tensor
+
 from . import properties as p
 
 

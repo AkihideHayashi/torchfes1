@@ -1,4 +1,5 @@
 import torch
+
 from torchfes.opt.solver import conjugate_gradient
 
 torch.set_default_dtype(torch.float64)

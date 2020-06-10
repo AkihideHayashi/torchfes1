@@ -1,6 +1,7 @@
 from typing import NamedTuple, Optional
+
 import torch
-from torch import nn, Tensor
+from torch import Tensor, nn
 
 
 class PosEngFrc(NamedTuple):
@@ -22,3 +23,11 @@ class PosEngFrcStorage(nn.Module):
             self.eng = inp.eng
             self.frc = inp.frc
         return PosEngFrc(pos=self.pos, eng=self.eng, frc=self.frc)
+
+
+def where_pef(flt: Tensor, ift: PosEngFrc, iff: PosEngFrc):
+    return PosEngFrc(
+        pos=torch.where(flt, ift.pos, iff.pos),
+        eng=torch.where(flt, ift.eng, iff.eng),
+        frc=torch.where(flt, ift.frc, iff.frc),
+    )

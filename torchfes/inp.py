@@ -1,7 +1,10 @@
 from typing import Dict
+
 import torch
 from torch import Tensor
-from . import properties as p, functional as fn
+
+from . import functional as fn
+from . import properties as p
 
 
 def init_inp(cel, pbc, elm, pos):

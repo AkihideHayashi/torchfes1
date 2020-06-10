@@ -1,6 +1,9 @@
-from typing import NamedTuple, Dict
+from typing import Dict, NamedTuple
+
 from torch import Tensor
+
 import pointneighbor as pn
+
 from . import properties as p
 
 

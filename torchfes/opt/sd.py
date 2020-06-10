@@ -1,5 +1,7 @@
 from typing import Dict
-from torch import nn, Tensor
+
+from torch import Tensor, nn
+
 from .. import properties as p
 
 

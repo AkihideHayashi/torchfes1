@@ -1,10 +1,12 @@
 from typing import Dict
+
 import torch
-from torch import nn, Tensor
-from .unified import update_mom, update_pos, update_tim
-from ..fes.bme import Shake, BMEV, BMEVariables, Rattle
+from torch import Tensor, nn
+
 from .. import properties as p
+from ..fes.bme import BMEV, BMEVariables, Rattle, Shake
 from ..opt.fire import FIRE
+from .unified import update_mom, update_pos, update_tim
 
 
 class PQP(nn.Module):

@@ -1,12 +1,14 @@
 from typing import Dict, Optional, Tuple
+
 import torch
-from torch import nn, Tensor
-from .transform import Decoder, Encoder, PosEngFrc, PosEngFrcStorage
-from .linesearch import WolfeCondition, LogSmapler
-from .solver import (init_conjugate_gradient_step, conjugate_gradient_step,
-                     ConjugateGradientStep)
-from ..forcefield import EvalEnergiesForces
+from torch import Tensor, nn
+
 from .. import properties as p
+from ..forcefield import EvalEnergiesForces
+from .linesearch import LogSmapler, WolfeCondition
+from .solver import (ConjugateGradientStep, conjugate_gradient_step,
+                     init_conjugate_gradient_step)
+from .transform import Decoder, Encoder, PosEngFrc, PosEngFrcStorage
 
 
 def optional(tensor: Tensor) -> Optional[Tensor]:

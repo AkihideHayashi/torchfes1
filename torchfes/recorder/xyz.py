@@ -1,8 +1,10 @@
 import io
-from typing import Union, Dict, List, IO, Any
 from pathlib import Path
-from torch import Tensor
+from typing import IO, Any, Dict, List, Union
+
 import numpy as np
+from torch import Tensor
+
 from .. import properties as p
 
 

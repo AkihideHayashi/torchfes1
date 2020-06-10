@@ -1,6 +1,8 @@
 from typing import Dict, NamedTuple
+
 import torch
-from torch import nn, Tensor
+from torch import Tensor, nn
+
 from .. import properties as p
 
 

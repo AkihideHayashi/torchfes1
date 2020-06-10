@@ -1,7 +1,9 @@
 from itertools import count
 from typing import Dict, List, NamedTuple
-from torch import nn, Tensor
+
 import torch
+from torch import Tensor, nn
+
 from .. import properties as p
 
 

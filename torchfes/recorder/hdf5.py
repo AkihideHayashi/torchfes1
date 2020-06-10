@@ -1,9 +1,9 @@
-from typing import Union, Dict, List
 from pathlib import Path
-from torch import Tensor
-import torch
-import h5py
+from typing import Dict, List, Union
 
+import h5py
+import torch
+from torch import Tensor
 
 _trj = 'trajectory'
 _thr = 'throughout'
