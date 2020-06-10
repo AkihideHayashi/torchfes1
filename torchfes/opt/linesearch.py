@@ -3,11 +3,11 @@ from typing import Dict
 import torch
 from torch import Tensor, nn
 
-from ..general import PosEngFrc, PosEngFrcStorage
+from ..general import PosEngFrc, PosEngFrcStorage, where_pef
 
 
-class LineSearchOptimizerSync(nn.Module):
-    def __init__(self, evl, vec, stp, con, reset):
+class LineSearchOptimizer(nn.Module):
+    def __init__(self, evl, vec, stp, con, reset, sync: bool):
         super().__init__()
         self.evl = evl
         self.vec = vec
@@ -16,12 +16,21 @@ class LineSearchOptimizerSync(nn.Module):
         self.pef = PosEngFrcStorage()
         self.reset = reset
         self.n_vec = 0
-        self.last_vec = False
+        self.sync = sync
 
     def init(self, env: Dict[str, Tensor], pos: Tensor):
         pef, _ = self.vec.init(pos, env)
         self.pef(pef)
         self.stp.init(pef, pef.eng == pef.eng, self.reset)
+
+    def get_flt_vec(self, con: Tensor):
+        if self.sync:
+            if (con == 0).all():
+                return torch.ones_like(con, dtype=torch.bool)
+            else:
+                return torch.zeros_like(con, dtype=torch.bool)
+        else:
+            return con == 0
 
     def forward(self, env: Dict[str, Tensor]):
         pef = self.pef()
@@ -30,17 +39,18 @@ class LineSearchOptimizerSync(nn.Module):
         pos_tmp = pef.pos + stp * vec
         pef_tmp = self.evl(env, pos_tmp)
         con = self.con(pef, pef_tmp, stp, vec)
-        one = pef.eng == pef.eng
-        if (con == 0).all():
-            pef = pef_tmp
-            vec = self.vec(pef, env, one)
-            stp = self.stp.init(pef, one, self.reset)
-            self.n_vec += 1
-            self.last_vec = True
-            self.pef(pef)
-        else:
-            stp = self.stp(con, pef_tmp, one)
-            self.last_vec = False
+
+        flt_vec = self.get_flt_vec(con)
+        flt_stp = ~flt_vec
+
+        pef = pef_tmp
+        vec = self.vec(pef, env, flt_vec)
+        stp = self.stp.init(pef, flt_vec, self.reset)
+        self.n_vec += 1
+
+        stp = self.stp(con, pef_tmp, flt_stp)
+
+        self.pef(where_pef(flt_vec, pef, self.pef()))
         return pef_tmp
 
 
