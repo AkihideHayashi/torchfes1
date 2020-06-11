@@ -6,9 +6,7 @@ from torchfes import properties as p
 from torchfes.forcefield import EvalEnergiesForcesGeneral
 from torchfes.inp import init_inp, init_nvt
 # from torchfes.md.md import PQF
-from torchfes.opt.cg import CG, FRCG
-from torchfes.opt.linesearch import (LineSearchOptimizer, LogSmapler,
-                                     WolfeCondition)
+from torchfes import opt as fopt
 from torchfes.general import cartesian_coordinate, CartesianCoordinate
 
 
@@ -35,13 +33,19 @@ def main1():
     evl = EvalEnergiesForcesGeneral(
         Quadratic(torch.tensor([10.0, 1.0, 0.1])), [], gen)
     env = make_inp()
-    opt = LineSearchOptimizer(
-        evl, CG(evl, FRCG()), LogSmapler(0.5), WolfeCondition(0.4, 0.6), False, True)
+    # vec = fopt.CG(evl, fopt.FRCG())
+    # vec = fopt.NewtonCG(evl)
+    # vec = fopt.BFGS(evl, fopt.QuasiNewtonInitWithDiagonal(0.01))
+    # vec = fopt.BFGS(evl, fopt.QuasiNewtonInitWithExact(evl))
+    vec = fopt.LBFGS(evl, 10, 0.01)
+    opt = fopt.LineSearchOptimizer(
+        evl, vec, fopt.LogSmapler(0.5), fopt.WolfeCondition(0.4, 0.6),
+        reset=True, sync=True)
     pos = cartesian_coordinate(env)
     opt.init(env, pos)
-    opt = jit.script(opt)
+    # opt = jit.script(opt)
     print(env[p.pos])
-    for _ in range(30):
+    for _ in range(60):
         pef = opt(env)
         print('eng: ', pef.eng.squeeze(-1))
 

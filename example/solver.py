@@ -10,8 +10,8 @@ def main():
     A = A_ + A_.transpose(1, 2)
     b = torch.rand(5, 10)
     x_exact = torch.solve(b[:, :, None], A).solution.squeeze(-1)
-    x = conjugate_gradient(A, b, b)
-
+    x = conjugate_gradient(A, b.unsqueeze(-1), b.unsqueeze(-1),
+                           torch.ones(5) * 1e-30).squeeze(-1)
 
     # print(x_exact.size())
     # print(x.size())

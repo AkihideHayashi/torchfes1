@@ -6,12 +6,37 @@ from torch import Tensor, nn
 from .. import properties as p
 
 
-def fnorm(x: Tensor, dim: int = 1):
+def _fnorm(x: Tensor, dim: int = 1):
     return x.flatten(dim).norm(2, dim)
 
 
 class FIRE(nn.Module):
-    def __init__(self, a0, n_min, f_a, f_inc, f_dec, dtm_max):
+    r"""FIRE relaxation.
+    DOI: 10.1103/PhysRevLett.97.170201
+    https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.97.170201
+
+    The following processes are performed between the steps of MD.
+
+    P = F \cdot v
+    v -> (1 - \alpha) v + \alpha F\hat |v|
+    if P > 0 for N_min times in a row:
+        \Delta t -> min(\Delta t f_inc, \Delta t_max)
+        \alpha -> \alpha f_\alpha
+    if P <= 0:
+        \Delta t -> \Delta t f_dec
+        v -> 0
+        \alpha -> \alpha_start
+
+    Args:
+        a0: \alpha_start
+        n_min: N_min
+        f_a: f_\alpha
+        f_inc: f_inc
+        f_dec: f_dec
+        dtm_max: \Delta t_max
+    """
+    def __init__(self, a0: float, n_min: int, f_a: float,
+                 f_inc: float, f_dec: float, dtm_max: float):
         super().__init__()
         self.a0 = a0
         self.n_min = n_min
@@ -33,7 +58,7 @@ class FIRE(nn.Module):
         vel = inp[p.mom] / inp[p.mas][:, :, None]
         frc = inp[p.frc]
         P = (vel * frc).sum(-1).sum(-1)
-        ratio = (fnorm(vel) / fnorm(frc))[:, None, None]
+        ratio = (_fnorm(vel) / _fnorm(frc))[:, None, None]
         a = self.a[:, None, None]
         vel_new = (1 - a) * vel + a * frc * ratio
         positive = (P > 0) & (self.count > self.n_min)

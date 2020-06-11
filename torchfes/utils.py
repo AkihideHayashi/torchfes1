@@ -36,10 +36,10 @@ def detach(inp: Dict[str, Tensor]):
 
 
 def grad(out: Tensor, inp: Tensor, grd_out: Optional[Tensor],
-         create_graph: bool) -> Tensor:
+         create_graph: bool, retain_graph: Optional[bool] = None) -> Tensor:
     grd, = torch.autograd.grad(
         outputs=[out], inputs=[inp], grad_outputs=[grd_out],
-        create_graph=create_graph)
+        create_graph=create_graph, retain_graph=retain_graph)
     if grd is None:
         raise RuntimeError()
     else:
@@ -53,11 +53,13 @@ def _ase_to_inp_inner(atoms: Atoms, order: List[str]):
     sym = atoms.get_chemical_symbols()
     pbc = np.array([True, True, True])
     elm = sym_to_elm(sym, order)
+    mas = atoms.get_masses().tolist()
     return {
         p.pos: torch.tensor(pos),
         p.cel: torch.tensor(cel),
         p.pbc: torch.tensor(pbc),
-        p.elm: torch.tensor(elm)
+        p.elm: torch.tensor(elm),
+        p.mas: torch.tensor(mas)
     }
 
 
@@ -67,7 +69,8 @@ def ase_to_inp(atoms_list: List[Atoms], order: List[str]):
     cel = torch.stack([inp[p.cel] for inp in inp_lst])
     elm = pad_cat_torch([inp[p.elm][None, :] for inp in inp_lst], -1)
     pbc = torch.stack([inp[p.pbc] for inp in inp_lst])
-    return {p.pos: pos, p.cel: cel, p.elm: elm, p.pbc: pbc}
+    mas = pad_cat_torch([inp[p.mas][None, :] for inp in inp_lst], 1.0)
+    return {p.pos: pos, p.cel: cel, p.elm: elm, p.pbc: pbc, p.mas: mas}
 
 
 def pad_torch(tensor: Tensor, size: List[int], value: float):

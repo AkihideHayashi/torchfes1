@@ -3,7 +3,7 @@ from typing import Dict
 import torch
 from torch import Tensor, nn
 
-from ..general import PosEngFrc, PosEngFrcStorage, where_pef
+from ...general import PosEngFrc, PosEngFrcStorage, where_pef
 
 
 class FRCG(nn.Module):
@@ -40,16 +40,26 @@ class CG(nn.Module):
         self.old = PosEngFrcStorage()
         self.vec = torch.tensor([])
 
-    def init(self, pos: Tensor, env: Dict[str, Tensor]):
-        pef = self.evl(env, pos)
+    def _init(self, pef: PosEngFrc):
         self.old(pef)
         self.vec = pef.frc
-        return pef, pef.frc
+        return pef, self.vec
+
+    def init(self, pos: Tensor, env: Dict[str, Tensor]):
+        pef = self.evl(env, pos)
+        return self._init(pef)
 
     def peek(self):
         return self.vec
 
-    def forward(self, pef: PosEngFrc, _: Dict[str, Tensor], flt: Tensor):
+    def forward(self, pef: PosEngFrc, env: Dict[str, Tensor], flt: Tensor,
+                reset: bool = False):
+        if reset:
+            self._init(pef)
+            return self.vec
+        if not flt.any():
+            return self.vec
+        assert len(env) > 0
         new = pef
         old: PosEngFrc = self.old()
         beta = self.cg_type(new.frc, old.frc, self.vec)

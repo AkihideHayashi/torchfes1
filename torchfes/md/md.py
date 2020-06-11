@@ -5,7 +5,7 @@ from torch import Tensor, nn
 
 from .. import properties as p
 from ..fes.bme import BMEV, BMEVariables, Rattle, Shake
-from ..opt.fire import FIRE
+from .fire import FIRE
 from .unified import update_mom, update_pos, update_tim
 
 
