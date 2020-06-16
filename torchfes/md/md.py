@@ -7,20 +7,23 @@ from .. import properties as p
 from ..fes.bme import BMEV, BMEVariables, Rattle, Shake
 from .fire import FIRE
 from .unified import update_mom, update_pos, update_tim
+from ..utils import pnt_ful
+from ..forcefield import EvalEnergiesForces
 
 
 class PQP(nn.Module):
     """NVE Velocity Verlet"""
 
-    def __init__(self, evl: nn.Module):
+    def __init__(self, eng: nn.Module, adj: nn.Module):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
 
     def forward(self, inp: Dict[str, Tensor]):
         out = update_mom(inp, 0.5)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         out = update_mom(out, 0.5)
         return out
 
@@ -28,31 +31,35 @@ class PQP(nn.Module):
 class PQ(nn.Module):
     """NVE Leap frog."""
 
-    def __init__(self, evl: nn.Module):
+    def __init__(self, eng: nn.Module, adj: nn.Module):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
 
     def forward(self, inp: Dict[str, Tensor]):
         out = update_mom(inp, 1.0)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         return out
 
 
 class PQF(nn.Module):
     """Leap frog FIRE."""
 
-    def __init__(self, evl: nn.Module, a0, n_min, f_a, f_inc, f_dec, dtm_max):
+    def __init__(self, eng: nn.Module, adj: nn.Module,
+                 a0: float, n_min: int, f_a: float,
+                 f_inc: float, f_dec: float, dtm_max: float):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.fire = FIRE(a0, n_min, f_a, f_inc, f_dec, dtm_max)
 
     def forward(self, inp: Dict[str, Tensor]):
         out = update_mom(inp, 1.0)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         out = self.fire(out)
         return out
 
@@ -60,16 +67,19 @@ class PQF(nn.Module):
 class PQPF(nn.Module):
     """NVE Velocity Verlet"""
 
-    def __init__(self, evl: nn.Module, a0, n_min, f_a, f_inc, f_dec, dtm_max):
+    def __init__(self, eng: nn.Module, adj: nn.Module,
+                 a0: float, n_min: int, f_a: float,
+                 f_inc: float, f_dec: float, dtm_max: float):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.fire = FIRE(a0, n_min, f_a, f_inc, f_dec, dtm_max)
 
     def forward(self, inp: Dict[str, Tensor]):
         out = update_mom(inp, 0.5)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         out = update_mom(out, 0.5)
         out = self.fire(out)
         return out
@@ -78,9 +88,10 @@ class PQPF(nn.Module):
 class PQTQ(nn.Module):
     """High precision NVT Leap Frog"""
 
-    def __init__(self, evl: nn.Module, kbt: nn.Module):
+    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
@@ -89,16 +100,17 @@ class PQTQ(nn.Module):
         out = self.kbt(out, 1.0)
         out = update_pos(out, 0.5)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         return out
 
 
 class PQTQP(nn.Module):
     """High precision NVT Velocity Verlet."""
 
-    def __init__(self, evl: nn.Module, kbt: nn.Module):
+    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
@@ -107,16 +119,18 @@ class PQTQP(nn.Module):
         out = self.kbt(out, 1.0)
         out = update_pos(out, 0.5)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         out = update_mom(out, 0.5)
         return out
 
 
 class TPQPT(nn.Module):
     """NVT Velocity Verlet."""
-    def __init__(self, evl: nn.Module, kbt: nn.Module):
+
+    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
@@ -124,7 +138,7 @@ class TPQPT(nn.Module):
         out = update_mom(out, 0.5)
         out = update_pos(out, 0.5)
         out = update_tim(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         out = update_mom(out, 0.5)
         out = self.kbt(out, 0.5)
         return out
@@ -132,9 +146,11 @@ class TPQPT(nn.Module):
 
 class PTPQ(nn.Module):
     """NVT Leap Frog."""
-    def __init__(self, evl: nn.Module, kbt: nn.Module):
+
+    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
@@ -143,17 +159,18 @@ class PTPQ(nn.Module):
         out = update_mom(out, 0.5)
         out = update_tim(out, 1.0)
         out = update_pos(out, 1.0)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         return out
 
 
 class PTPQS(nn.Module):
     """Constrained NVT Leap Frog."""
 
-    def __init__(self, evl: nn.Module, kbt: nn.Module, con: nn.Module,
-                 tol: float):
+    def __init__(self, eng: nn.Module, adj: nn.Module,
+                 kbt: nn.Module, con: nn.Module, tol: float):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.kbt = kbt
         self.shk = Shake(con, tol)
         self.bme = BMEVariables(con)
@@ -168,7 +185,7 @@ class PTPQS(nn.Module):
         bme: BMEV = self.bme(out)
         out = update_pos(out, 1.0)
         out, lmd = self.shk(out, bme.jac)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
 
         out[p.bme_lmd] = lmd.detach()
         out[p.bme_cor] = bme.cor.detach()
@@ -180,11 +197,13 @@ class PTPQS(nn.Module):
 class TPQSPTR(nn.Module):
     """Constrained NVT Velocity Verlet."""
 
-    def __init__(self, evl: nn.Module, kbt: nn.Module, con: nn.Module,
+    def __init__(self, eng: nn.Module, adj: nn.Module,
+                 kbt: nn.Module, con: nn.Module,
                  tol_pos: float, tol_mom: float,
                  ):
         super().__init__()
-        self.evl = evl
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
         self.kbt = kbt
         self.shk = Shake(con, tol_pos)
         self.rtl = Rattle(con, tol_mom)
@@ -218,7 +237,7 @@ class TPQSPTR(nn.Module):
         out = update_tim(out, 1.0)
         out = update_pos(out, 1.0)
         out, lmd = self.shk(out, bme.jac)
-        out = self.evl(out)
+        out = self.evl(out, self.adj(pnt_ful(out)))
         out = update_mom(out, 0.5)
         out = self.kbt(out, 0.5)
 

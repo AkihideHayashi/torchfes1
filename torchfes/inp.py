@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Union
 
 import torch
 from torch import Tensor
@@ -7,27 +7,52 @@ from . import functional as fn
 from . import properties as p
 
 
-def init_inp(cel, pbc, elm, pos):
-    return {
+def init_inp(cel, pbc, elm, pos, mas=None):
+    """
+    Parameters:
+        cel (float[bch, dim, dim]): cell
+        pbc (bool[bch, dim]): periodic boundary condition
+        pos (float[bch, atm, dim]): positions
+        elm (int[bch, atm])
+        mas (float[elm]): mas[elm] is mass
+    """
+    ret = {
         p.cel: cel,
         p.pbc: pbc,
         p.elm: elm,
         p.pos: pos,
         p.ent: elm >= 0,
     }
+    if mas is not None:
+        ret[p.mas] = mas[elm]
+    return ret
 
 
-def add_md(inp: Dict[str, Tensor], mom, mas, tim, dtm, frc=None):
-    if frc is None:
-        frc = torch.zeros_like(inp[p.pos])
-    inp[p.mom] = mom
-    inp[p.mas] = mas
-    inp[p.tim] = tim
+def add_md(inp: Dict[str, Tensor], dtm: Union[float, Tensor],
+           kbt: Union[float, Tensor]):
+    if p.mas not in inp:
+        raise RuntimeError('inp must have p.mas')
+    n_bch = inp[p.pos].size(0)
+    if isinstance(dtm, float):
+        dtm = inp[p.pos].new_ones([n_bch])
+    if isinstance(kbt, float):
+        kbt = torch.ones_like(dtm) * kbt
     inp[p.dtm] = dtm
-    inp[p.frc] = frc
+    inp[p.tim] = torch.zeros_like(dtm)
+    inp[p.kbt] = kbt
+    inp[p.mom] = fn.maxwell(inp[p.pos], inp[p.ent], inp[p.mas], kbt)
+    inp[p.frc] = torch.zeros_like(inp[p.mom])
 
 
-def add_nvt(inp: Dict[str, Tensor], kbt):
+def add_nvt(inp: Dict[str, Tensor], dtm: Union[float, Tensor],
+            kbt: Union[float, Tensor]):
+    """
+    Parameters:
+        mas: mas[elm] is mass
+    """
+    add_md(inp, dtm, kbt)
+    if isinstance(kbt, float):
+        kbt = torch.ones_like(inp[p.dtm]) * kbt
     inp[p.kbt] = kbt
 
 
@@ -51,15 +76,3 @@ def add_global_nose_hoover_chain(inp: Dict[str, Tensor], tau_nhc: Tensor):
     inp[p.mas_nhc] = mas_nhc
     inp[p.pos_nhc] = pos_nhc
     inp[p.mom_nhc] = mom_nhc
-
-
-def init_nvt(inp: Dict[str, Tensor], mas: Tensor, dtm: Tensor, kbt: Tensor):
-    """
-    Parameters:
-        mas: mas[elm] is mass
-    """
-    mas_ = mas[inp[p.elm]]
-    mom = fn.maxwell(inp[p.pos], inp[p.ent], mas_, kbt)
-    tim = torch.zeros_like(dtm)
-    add_md(inp, mom, mas_, tim, dtm)
-    add_nvt(inp, kbt)

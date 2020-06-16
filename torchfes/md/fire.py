@@ -38,6 +38,9 @@ class FIRE(nn.Module):
     def __init__(self, a0: float, n_min: int, f_a: float,
                  f_inc: float, f_dec: float, dtm_max: float):
         super().__init__()
+        assert 0 < f_a < 1
+        assert f_inc > 1
+        assert 0 < f_dec < 1
         self.a0 = a0
         self.n_min = n_min
         self.f_inc = f_inc

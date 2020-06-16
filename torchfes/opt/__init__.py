@@ -2,4 +2,5 @@
 from .vec import *
 from .con import WolfeCondition
 from .stp import LogSmapler
-from .linesearch import LineSearchOptimizer
+from .linesearch import GeneralLineSearchOptimizer
+from . import utils

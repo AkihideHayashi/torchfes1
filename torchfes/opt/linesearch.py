@@ -7,7 +7,7 @@ from ..general import PosEngFrcStorage, where_pef
 from ..forcefield import EvalEnergiesForcesGeneral
 
 
-class LineSearchOptimizer(nn.Module):
+class GeneralLineSearchOptimizer(nn.Module):
     """All methods that use line search are performed using this class.
     Args:
         evl: energy and forces evaluator.
@@ -28,14 +28,17 @@ class LineSearchOptimizer(nn.Module):
         self.stp = stp
         self.con = con
         self.pef = PosEngFrcStorage()
+        self.pef_tmp = PosEngFrcStorage()
         self.reset = reset
         self.n_vec = 0
         self.sync = sync
+        self.initialized = False
 
     def init(self, env: Dict[str, Tensor], pos: Tensor):
+        self.initialized = True
         pef, _ = self.vec.init(pos, env)
         self.pef(pef)
-        self.stp.init(pef, pef.eng == pef.eng, self.reset)
+        self.stp.init(pef, pef.eng == pef.eng, True)
 
     def get_flt_vec(self, con: Tensor):
         if self.sync:
@@ -47,11 +50,14 @@ class LineSearchOptimizer(nn.Module):
             return con == 0
 
     def forward(self, env: Dict[str, Tensor], reset: bool = False):
+        if not self.initialized:
+            raise RuntimeError(
+                'GeneralLinesearchOptimizer have to be initialized using init')
         pef = self.pef()
         stp = self.stp.peek()
         vec = self.vec.peek()
         pos_tmp = pef.pos + stp * vec
-        pef_tmp = self.evl(env, pos_tmp)
+        out, pef_tmp = self.evl(env, pos_tmp)
         con = self.con(pef, pef_tmp, stp, vec)
 
         flt_vec = self.get_flt_vec(con)
@@ -65,4 +71,5 @@ class LineSearchOptimizer(nn.Module):
         stp = self.stp(con, pef_tmp, flt_stp)
 
         self.pef(where_pef(flt_vec, pef, self.pef()))
-        return pef_tmp
+        self.pef_tmp(pef_tmp)
+        return out

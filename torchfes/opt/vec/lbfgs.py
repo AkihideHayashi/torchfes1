@@ -28,7 +28,7 @@ class LBFGS(nn.Module):
         return pef, self.vec
 
     def init(self, pos: Tensor, env: Dict[str, Tensor]):
-        pef = self.evl(env, pos)
+        _, pef = self.evl(env, pos)
         return self._init(pef)
 
     def peek(self):

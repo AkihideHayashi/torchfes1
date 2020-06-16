@@ -22,7 +22,7 @@ class NewtonCG(nn.Module):
             torch.clamp_max(frc_pow.sqrt(), 0.25) * frc_pow, self.eps)
 
     def newton_cg(self, pos: Tensor, env: Dict[str, Tensor], vec: Tensor):
-        pef: PosEngFrc = self.evl(env, pos, frc=True, frc_grd=True)
+        _, pef = self.evl(env, pos, frc=True, frc_grd=True)
         frc = pef.frc.clone().detach()
         eps = self.get_eps(frc)
         Ax = grad(
@@ -37,7 +37,7 @@ class NewtonCG(nn.Module):
         return cg.x.squeeze(-1)
 
     def init(self, pos: Tensor, env: Dict[str, Tensor]):
-        pef = self.evl(env, pos)
+        _, pef = self.evl(env, pos)
         self.vec = pef.frc
         self.vec = self.newton_cg(pos, env, self.vec)
         return pef, self.vec

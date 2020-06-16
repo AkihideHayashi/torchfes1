@@ -5,6 +5,36 @@ from ...general import PosEngFrc, PosEngFrcStorage
 from ...utils import grad
 
 
+def inverse(A: Tensor, tol: float):
+    return torch.stack([inverse_one(A[i], tol) for i in range(A.size(0))])
+
+
+def inverse_one(A: Tensor, tol: float):
+    if A.requires_grad:
+        raise RuntimeError()
+    ret = torch.zeros_like(A)
+    v = valid(A)
+    vv = v[:, None] & v[None, :]
+    n = v.sum().item()
+    Avv = A[vv].view([n, n])
+    ret[vv] = inverse_inner(Avv, tol).flatten()
+    return ret
+
+
+def inverse_inner(A: Tensor, tol: float):
+    A = (A + A.t()) / 2
+    e, c = torch.eig(A, True)
+    c[:, e[:, 0] < 0] *= -1
+    e = (e[:, 0].pow(2) + e[:, 1].pow(2)).sqrt()
+    val = e > tol
+    e = torch.where(val, 1 / e, torch.zeros_like(e))
+    return c @ torch.diag(e) @ c.t()
+
+
+def valid(A: Tensor):
+    return (A != 0).any(0)
+
+
 class QuasiNewtonInitWithDiagonal(nn.Module):
     def __init__(self, a: float):
         super().__init__()
@@ -17,12 +47,13 @@ class QuasiNewtonInitWithDiagonal(nn.Module):
 
 
 class QuasiNewtonInitWithExact(nn.Module):
-    def __init__(self, evl):
+    def __init__(self, evl, tol_inv_eig):
         super().__init__()
         self.evl = evl
+        self.tol_inv_eig = tol_inv_eig
 
     def forward(self, inp: PosEngFrc, env: Dict[str, Tensor]):
-        pef: PosEngFrc = self.evl(env, inp.pos, frc_grd=True)
+        _, pef = self.evl(env, inp.pos, frc_grd=True)
         frc = pef.frc
         pos = pef.pos
         hes_lst = []
@@ -34,7 +65,7 @@ class QuasiNewtonInitWithExact(nn.Module):
                 grad(-frc, pos, grd_out, create_graph=False, retain_graph=True)
             )
         hes = torch.stack(hes_lst, 2)
-        return hes.inverse()
+        return inverse(hes, self.tol_inv_eig)
 
 
 def _mv(A: Tensor, x: Tensor):
@@ -63,7 +94,11 @@ class BFGS(nn.Module):
         self.old = PosEngFrcStorage()
 
     def get_vec(self, frc: Tensor):
-        return _mv(self.hes_inv, frc)
+        vec = _mv(self.hes_inv, frc)
+        dot = _vv(vec, frc)
+        if not (dot >= -1e-10).all():
+            raise RuntimeError()
+        return vec * _vv(vec, frc).sign()[:, None]
 
     def _init(self, pef: PosEngFrc, env: Dict[str, Tensor]):
         self.hes_inv = self.ini(pef, env)
@@ -72,7 +107,7 @@ class BFGS(nn.Module):
         return pef, self.vec
 
     def init(self, pos: Tensor, env: Dict[str, Tensor]):
-        pef = self.evl(env, pos)
+        _, pef = self.evl(env, pos)
         return self._init(pef, env)
 
     def peek(self):
@@ -83,23 +118,24 @@ class BFGS(nn.Module):
         if reset:
             self._init(pef, env)
             return self.vec
-        if flt.all().item():
-            old: PosEngFrc = self.old()
-            s = pef.pos - old.pos
-            y = old.frc - pef.frc
-            B = self.hes_inv
-            num1 = _uns((_vv(s, y) + _vv(y, _mv(B, y)))) * outer(s, s)
-            den1 = _uns(_vv(s, y).pow(2))
-            num2_1 = outer(_mv(B, y), s)
-            num2_2 = num2_1.transpose(1, 2)
-            num2 = num2_1 + num2_2
-            den2 = _uns(_vv(s, y))
-            self.hes_inv = B + (num1 / den1) - (num2 / den2)
-            self.vec = self.get_vec(pef.frc)
-            return self.vec
-        else:
-            if flt.any().item():
-                raise NotImplementedError(
-                    'BFGS for sync=False is not implemented.'
-                )
-            return self.vec
+        old: PosEngFrc = self.old()
+        s = pef.pos - old.pos
+        y = old.frc - pef.frc
+        B = self.hes_inv
+        num1 = _uns((_vv(s, y) + _vv(y, _mv(B, y)))) * outer(s, s)
+        den1 = _uns(_vv(s, y).pow(2))
+        num2_1 = outer(_mv(B, y), s)
+        num2_2 = num2_1.transpose(1, 2)
+        num2 = num2_1 + num2_2
+        den2 = _uns(_vv(s, y))
+        self.hes_inv = torch.where(
+            flt[:, None].expand_as(B),
+            B + (num1 / den1) - (num2 / den2),
+            self.hes_inv
+        )
+        self.vec = torch.where(
+            flt,
+            self.get_vec(pef.frc),
+            self.vec
+        )
+        return self.vec

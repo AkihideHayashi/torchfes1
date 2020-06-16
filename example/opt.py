@@ -39,7 +39,7 @@ def main1():
     # vec = fopt.BFGS(evl, fopt.QuasiNewtonInitWithExact(evl))
     vec = fopt.LBFGS(evl, 10, 0.01)
     opt = fopt.LineSearchOptimizer(
-        evl, vec, fopt.LogSmapler(0.5), fopt.WolfeCondition(0.4, 0.6),
+        evl, vec, fopt.LogSmapler(2.0, 0.9), fopt.WolfeCondition(0.4, 0.6),
         reset=True, sync=True)
     pos = cartesian_coordinate(env)
     opt.init(env, pos)

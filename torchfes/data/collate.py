@@ -71,6 +71,8 @@ class ToDictTensor:
             assert p.elm not in dict_arrays
             dict_arrays[p.elm] = sym_to_elm(
                 dict_arrays.pop(p.sym), self.symbols)
+        if p.ent not in dict_arrays:
+            dict_arrays[p.ent] = dict_arrays[p.elm] >= 0
         dict_tensors = {key: torch.tensor(val.tolist())
                         for key, val in dict_arrays.items()}
         return dict_tensors
