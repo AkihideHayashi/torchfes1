@@ -1,10 +1,26 @@
+"""The definition of lambda is same as vasp wiki.
+The definition of G is same as vasp wiki.
+lambda + GkT is good for fes.
+"""
 from itertools import count
 from typing import Dict, List, NamedTuple
 
 import torch
 from torch import Tensor, nn
 
+from pointneighbor import AdjSftSpc
+
 from .. import properties as p
+
+
+def bme_var(lmd: Tensor, kbt: Tensor, cor: Tensor):
+    return (lmd + kbt[:, :, None] * cor)
+
+
+def bme_postprocess(lmd: Tensor, kbt: Tensor, cor: Tensor, fix: Tensor):
+    # n_trj, n_bch, n_col = lmd.size()
+    term = (lmd + kbt[:, :, None] * cor)
+    return (term * fix).mean(0) / fix.mean(0)
 
 
 class BMEV(NamedTuple):
@@ -60,9 +76,9 @@ class BMEVariables(nn.Module):
         super().__init__()
         self.con = con
 
-    def forward(self, inp: Dict[str, Tensor]):
+    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
         out = requires_grad(inp, [p.pos])
-        con = self.con(out)
+        con = self.con(out, adj)
         jac = jacobian(con, out[p.pos])
         mmt = bme_z(out[p.mas], jac)
         cor = bme_g(out[p.pos], out[p.mas], jac, mmt) * inp[p.kbt][:, None]
@@ -117,7 +133,7 @@ class Shake(nn.Module):
         self.tol = tol
         self.debug = debug
 
-    def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor):
+    def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor, adj: AdjSftSpc):
         pos = inp[p.pos].clone()
         mom = inp[p.mom].clone()
         out = inp.copy()
@@ -130,7 +146,7 @@ class Shake(nn.Module):
             frc = -(lmd[:, :, None, None] * jac_prv).sum(1)
             out[p.pos] = pos + frc / mas * dtm * dtm
             out[p.mom] = mom + frc * dtm
-            con = self.con(out)
+            con = self.con(out, adj)
             if con.abs().max() < self.tol:
                 break
             jac = jacobian(con, lmd)

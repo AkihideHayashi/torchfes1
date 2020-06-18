@@ -5,6 +5,7 @@ import torch
 from .ase import atoms_to_dict
 from .numpy import stack
 from .. import properties as p
+from .default import default_values
 
 
 def sym_to_elm(symbols: Union[str, List, np.ndarray],
@@ -32,18 +33,11 @@ def collate_single(data):
 
 
 class ToDictArray:
-    def __init__(self, default_values=None):
-        if default_values is None:
-            default_values = {}
-        self.default_values = {
-            p.pos: 0.0,
-            p.sym: '',
-            p.elm: -1,
-            p.cel: 0.0,
-            p.pbc: True,
-            p.mas: 1.0,
-        }
-        for key, val in default_values.items():
+    def __init__(self, default=None):
+        if default is None:
+            default = {}
+        self.default_values = default_values.copy()
+        for key, val in default.items():
             self.default_values[key] = val
 
     def __call__(self, datas):
@@ -61,9 +55,9 @@ class ToDictArray:
 
 
 class ToDictTensor:
-    def __init__(self, symbols: List[str], default_values=None):
+    def __init__(self, symbols: List[str], default=None):
         self.symbols = symbols
-        self.to_dict_array = ToDictArray(default_values)
+        self.to_dict_array = ToDictArray(default)
 
     def __call__(self, datas):
         dict_arrays = self.to_dict_array(datas)

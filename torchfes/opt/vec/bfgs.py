@@ -6,7 +6,10 @@ from ...utils import grad
 
 
 def inverse(A: Tensor, tol: float):
-    return torch.stack([inverse_one(A[i], tol) for i in range(A.size(0))])
+    lst = []
+    for i in range(A.size(0)):
+        lst.append(inverse_one(A[i], tol))
+    return torch.stack(lst)
 
 
 def inverse_one(A: Tensor, tol: float):
@@ -15,7 +18,7 @@ def inverse_one(A: Tensor, tol: float):
     ret = torch.zeros_like(A)
     v = valid(A)
     vv = v[:, None] & v[None, :]
-    n = v.sum().item()
+    n = int(v.sum().item())
     Avv = A[vv].view([n, n])
     ret[vv] = inverse_inner(Avv, tol).flatten()
     return ret
@@ -96,7 +99,7 @@ class BFGS(nn.Module):
     def get_vec(self, frc: Tensor):
         vec = _mv(self.hes_inv, frc)
         dot = _vv(vec, frc)
-        if not (dot >= -1e-10).all():
+        if not (dot >= -1e-10).all().item():
             raise RuntimeError()
         return vec * _vv(vec, frc).sign()[:, None]
 

@@ -25,7 +25,7 @@ class EvalEnergies(nn.Module):
         n_bch = inp[p.pos].size(0)
         for res in self.res:
             eng_res_lst.append(res(inp, adj))
-        if eng_res_lst:
+        if len(eng_res_lst) > 0:
             eng_res = torch.stack(eng_res_lst)
         else:
             eng_res = eng_tot.new_zeros([0, n_bch])

@@ -3,6 +3,8 @@ from typing import Dict
 import torch
 from torch import Tensor, nn
 
+from pointneighbor import AdjSftSpc, AdjSftSpcStorage
+
 from .. import properties as p
 from ..fes.bme import BMEV, BMEVariables, Rattle, Shake
 from .fire import FIRE
@@ -163,6 +165,45 @@ class PTPQ(nn.Module):
         return out
 
 
+class PQS(nn.Module):
+    """Constrained NVE Leap Frog."""
+
+    def __init__(self, eng: nn.Module, adj: nn.Module,
+                 con: nn.Module, tol: float):
+        super().__init__()
+        self.evl = EvalEnergiesForces(eng)
+        self.adj = adj
+        self.shk = Shake(con, tol)
+        self.bme = BMEVariables(con)
+        self.adj_tmp = AdjSftSpcStorage()
+
+    def get_adj_tmp(self, inp: Dict[str, Tensor]):
+        if self.adj_tmp.empty():
+            adj: AdjSftSpc = self.adj(pnt_ful(inp))
+            self.adj_tmp(adj)
+        return self.adj_tmp()
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = inp.copy()
+        out = update_mom(out, 1.0)
+        out = update_tim(out, 1.0)
+
+        adj: AdjSftSpc = self.get_adj_tmp(out)
+
+        bme: BMEV = self.bme(out, adj)
+        out = update_pos(out, 1.0)
+        out, lmd = self.shk(out, bme.jac, adj)
+        adj = self.adj(pnt_ful(out))
+        self.adj_tmp(adj)
+        out = self.evl(out, adj)
+
+        out[p.bme_lmd] = lmd.detach()
+        out[p.bme_cor] = bme.cor.detach()
+        out[p.bme_fix] = (torch.ones_like(lmd) /
+                          bme.mmt.detach().det().sqrt()[:, None])
+        return out
+
+
 class PTPQS(nn.Module):
     """Constrained NVT Leap Frog."""
 
@@ -171,9 +212,16 @@ class PTPQS(nn.Module):
         super().__init__()
         self.evl = EvalEnergiesForces(eng)
         self.adj = adj
+        self.adj_tmp = AdjSftSpcStorage()
         self.kbt = kbt
         self.shk = Shake(con, tol)
         self.bme = BMEVariables(con)
+
+    def get_adj_tmp(self, inp: Dict[str, Tensor]):
+        if self.adj_tmp.empty():
+            adj: AdjSftSpc = self.adj(pnt_ful(inp))
+            self.adj_tmp(adj)
+        return self.adj_tmp()
 
     def forward(self, inp: Dict[str, Tensor]):
         out = inp.copy()
@@ -182,10 +230,13 @@ class PTPQS(nn.Module):
         out = update_mom(out, 0.5)
         out = update_tim(out, 1.0)
 
-        bme: BMEV = self.bme(out)
+        adj: AdjSftSpc = self.get_adj_tmp(out)
+        bme: BMEV = self.bme(out, adj)
         out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out, lmd = self.shk(out, bme.jac, adj)
+        adj = self.adj(pnt_ful(out))
+        self.adj_tmp(adj)
+        out = self.evl(out, adj)
 
         out[p.bme_lmd] = lmd.detach()
         out[p.bme_cor] = bme.cor.detach()
@@ -213,36 +264,46 @@ class TPQSPTR(nn.Module):
         self.str_bme_fix = torch.tensor([])
         self.str_bme_mmt = torch.tensor([])
         self.str_bme_cor = torch.tensor([])
+        self.adj_tmp = AdjSftSpcStorage()
 
-    def get_bme(self, inp: Dict[str, Tensor]):
+    def get_bme(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
         if self.str_bme_jac.numel() == 0:
-            self.set_bme(inp)
+            self.set_bme(inp, adj)
         return BMEV(jac=self.str_bme_jac, mmt=self.str_bme_mmt,
                     fix=self.str_bme_fix, cor=self.str_bme_cor)
 
-    def set_bme(self, inp: Dict[str, Tensor]):
-        bme: BMEV = self.bme(inp)
+    def set_bme(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        bme: BMEV = self.bme(inp, adj)
         self.str_bme_mmt = bme.mmt
         self.str_bme_jac = bme.jac
         self.str_bme_fix = bme.fix
         self.str_bme_cor = bme.cor
 
+    def get_adj_tmp(self, inp: Dict[str, Tensor]):
+        if self.adj_tmp.empty():
+            adj: AdjSftSpc = self.adj(pnt_ful(inp))
+            self.adj_tmp(adj)
+        return self.adj_tmp()
+
     def forward(self, inp: Dict[str, Tensor]):
         out = inp.copy()
 
-        bme: BMEV = self.get_bme(out)
+        adj: AdjSftSpc = self.get_adj_tmp(out)
+        bme: BMEV = self.get_bme(out, adj)
 
         out = self.kbt(out, 0.5)
         out = update_mom(out, 0.5)
         out = update_tim(out, 1.0)
         out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out, lmd = self.shk(out, bme.jac, adj)
+        adj = self.adj(pnt_ful(out))
+        self.adj_tmp(adj)
+        out = self.evl(out, adj)
         out = update_mom(out, 0.5)
         out = self.kbt(out, 0.5)
 
-        self.set_bme(out)
-        tmp = self.get_bme(out)
+        self.set_bme(out, adj)
+        tmp = self.get_bme(out, adj)
         out, lmd_rtl = self.rtl(out, tmp.jac)
 
         out[p.bme_lmd] = lmd.detach() + self.lmd_rtl

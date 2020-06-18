@@ -13,10 +13,6 @@ def main():
     x = conjugate_gradient(A, b.unsqueeze(-1), b.unsqueeze(-1),
                            torch.ones(5) * 1e-30).squeeze(-1)
 
-    # print(x_exact.size())
-    # print(x.size())
-    # print(x - x_exact)
-    # print(A @ x_exact[:, :, None] - b[:, :, None])
     print(torch.allclose(A @ x_exact[:, :, None], b[:, :, None], atol=1e-5))
     print(torch.allclose(A @ x[:, :, None], b[:, :, None], atol=1e-4))
     print((A @ x[:, :, None] - b[:, :, None]).abs().max())

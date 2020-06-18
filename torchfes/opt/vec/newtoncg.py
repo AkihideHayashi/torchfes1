@@ -29,7 +29,7 @@ class NewtonCG(nn.Module):
             -pef.frc, pef.pos, vec, False, retain_graph=True).unsqueeze(-1)
         cg = init_conjugate_gradient_step(
             vec.unsqueeze(-1), Ax, frc.unsqueeze(-1), eps)
-        while ((cg.r * cg.r).squeeze(2).sum(1) > eps).any():
+        while ((cg.r * cg.r).squeeze(2).sum(1) > eps).any().item():
             Ap = grad(
                 -pef.frc, pef.pos, cg.p.squeeze(-1), False, retain_graph=True
             ).unsqueeze(-1)

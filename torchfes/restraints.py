@@ -4,9 +4,9 @@ import torch
 from torch import Tensor, nn
 
 import pointneighbor as pn
+from pointneighbor import AdjSftSpc
 
 from . import properties as p
-from .api import pnt_ful
 
 
 class QuadraticRestraints(nn.Module):
@@ -26,8 +26,9 @@ class QuadraticRestraints(nn.Module):
         self.sgn = sgn
         self.k = k
 
-    def forward(self, inp: Dict[str, Tensor]):
-        col: Tensor = self.col(inp)
+    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        col: Tensor = self.col(inp, adj)
+        # col.size() == (n_bch, n_col)
         assert col.dim() == 2
         eff = (col.sign() * self.sgn) >= 0
         res = (col * col * self.k * eff).sum(1)
@@ -38,15 +39,13 @@ class ClosePenalty(nn.Module):
     k: Tensor
     radius: Tensor
 
-    def __init__(self, adj, radius, k):
+    def __init__(self, radius, k):
         super().__init__()
         self.register_buffer('k', k)
         self.register_buffer('radius', radius)
-        self.adj = adj
 
-    def forward(self, inp: Dict[str, Tensor]):
+    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
         rc = self.radius.max().item() * 2
-        adj: pn.AdjSftSpc = self.adj(pnt_ful(inp))
         adj, vec_sod = pn.coo2_adj_vec_sod(adj, inp[p.pos], inp[p.cel], rc)
         n, i, j, _ = adj.adj.unbind(0)
         ei = inp[p.elm][n, i]
