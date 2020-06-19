@@ -52,6 +52,9 @@ class XYZRecorder:
             path = self.dir_path / f'{i}.xyz'
             self.f.append(open(path, mode=mode))
 
+    def __enter__(self):
+        return self
+
     def __exit__(self, *_):
         self.close()
 
