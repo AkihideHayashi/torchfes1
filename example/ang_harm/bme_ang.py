@@ -86,8 +86,8 @@ def main():
         colvar, torch.linspace(0.2, pi - 0.2, inp[p.elm].size(0))[:, None])
     eng = EvalEnergies(
         pot,
-        [QuadraticRestraints(
-            collective, torch.tensor([0]), torch.tensor([100.0]))]
+        QuadraticRestraints(
+            collective, torch.tensor([0]), torch.tensor([100.0]))
     )
     adj = pn.Coo2FulSimple(100.0)
     kbt = md.unified.GlobalLangevin()
@@ -98,7 +98,7 @@ def main():
         inp = dyn(inp)
     print('end pre md')
 
-    eng = EvalEnergies(pot, [])
+    eng = EvalEnergies(pot)
     dyn = md.PTPQS(eng, adj, kbt, collective, 5e-4)
     # dyn = md.TPQSPTR(eng, adj, kbt, collective, 5e-4, 5e-4)
     timer = Timer()

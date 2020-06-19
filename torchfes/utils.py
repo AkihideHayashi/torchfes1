@@ -36,13 +36,24 @@ def detach(inp: Dict[str, Tensor]):
     return out
 
 
-def grad(out: Tensor, inp: Tensor, grd_out: Optional[Tensor],
-         create_graph: bool, retain_graph: Optional[bool] = None) -> Tensor:
+def grad(out: Tensor, inp: Tensor, grd_out: Optional[Tensor] = None,
+         create_graph: bool = False, retain_graph: Optional[bool] = None
+         ) -> Tensor:
+    if grd_out is None:
+        grd_out = torch.ones_like(out)
+    return _grad_inner(out, inp, grd_out, create_graph, retain_graph)
+
+
+def _grad_inner(out: Tensor, inp: Tensor, grd_out: Optional[Tensor],
+                create_graph: bool, retain_graph: Optional[bool]) -> Tensor:
+    if not out.requires_grad:
+        return torch.zeros_like(inp)
     grd, = torch.autograd.grad(
         outputs=[out], inputs=[inp], grad_outputs=[grd_out],
-        create_graph=create_graph, retain_graph=retain_graph)
+        create_graph=create_graph, retain_graph=retain_graph,
+        allow_unused=True)
     if grd is None:
-        raise RuntimeError()
+        return torch.zeros_like(inp)
     else:
         return grd
 

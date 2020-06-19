@@ -2,13 +2,13 @@ from math import pi
 from typing import Dict
 import torch
 from torch import nn, Tensor
-from ase.units import kB, fs, kJ, mol, Ha, Bohr, _aut, Ang, AUT, Ry
+from ase.units import kB, fs, Ha, Bohr, Ang, AUT
 import pointneighbor as pn
 from pointneighbor import AdjSftSpc
 from pnpot.classical import LennardJones
 from torchfes.forcefield import EvalEnergies, EvalEnergiesForces
 from torchfes.utils import sym_to_elm
-from torchfes.inp import init_inp, add_nvt, add_global_nose_hoover_chain, add_md
+from torchfes.inp import init_inp, add_nvt, add_global_nose_hoover_chain
 from torchfes import md
 from torchfes import properties as p
 from torchfes.recorder.xyz import XYZRecorder
@@ -41,7 +41,8 @@ class Fix213(nn.Module):
 
 def parse_vel(xyz):
     return torch.tensor([[
-        [float(w) for w in line.split()[1:]] for line in xyz.split('\n') if line.strip()
+        [float(w) for w in line.split()[1:]] for line in xyz.split('\n')
+        if line.strip()
     ]])
 
 # print(parse_vel("""
@@ -87,8 +88,7 @@ def main():
     torch.set_default_dtype(torch.float64)
     inp = make_inp()
     eng = EvalEnergies(
-        LennardJones(e=torch.tensor([0.1]), s=torch.tensor([3.405])),
-        []
+        LennardJones(e=torch.tensor([0.1]), s=torch.tensor([3.405]))
     )
     adj = pn.Coo2FulSimple(1000.0)
     con = Fix213()
@@ -107,7 +107,8 @@ def main():
     print(f'{kin_[0].item() / Ha : < 10.8} {tem[0].item() / kB :< 10.8}')
     print(inp[p.eng_mol][0].item() / Ha)
     print(
-        'Step Nr.    Time[fs]   Kin.[a.u.]       Temp[K]         Pot.[a.u.]        Cons Qty[a.u.]        UsedTime[s]')
+        'Step Nr.    Time[fs]   Kin.[a.u.]       Temp[K]         Pot.[a.u.]'
+        '        Cons Qty[a.u.]        UsedTime[s]')
     kin = fn.kinetic_energies(inp[p.mom], inp[p.mas], inp[p.ent])
     tem = fn.temperatures(kin, inp[p.ent], 3)
     tim = inp[p.tim][0].item() / fs

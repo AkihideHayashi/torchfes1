@@ -40,7 +40,7 @@ def main():
     torch.set_default_dtype(torch.float64)
 
     gen = CartesianCoordinate()
-    eng = EvalEnergies(Quadratic(torch.tensor([10.0, 1.0, 0.1])), [])
+    eng = EvalEnergies(Quadratic(torch.tensor([10.0, 1.0, 0.1])))
     adj = pn.Coo2FulSimple(10.0)
     evl_gen = EvalEnergiesForcesGeneral(eng, gen, adj)
     env = make_inp()
@@ -71,7 +71,7 @@ def main():
     print(env[p.pos])
     for _ in range(60):
         env = opt(env)
-        print('eng: ', env[p.eng_tot].squeeze(-1))
+        print('eng: ', env[p.eng].squeeze(-1))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 import torch
 from torch import Tensor, nn
@@ -7,6 +7,18 @@ import pointneighbor as pn
 from pointneighbor import AdjSftSpc
 
 from . import properties as p
+
+
+class MultipleRestraints(nn.Module):
+    def __init__(self, restraints: List[nn.Module]):
+        super().__init__()
+        self.restraints = restraints
+
+    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        eng = []
+        for restraint in self.restraints:
+            eng.append(restraint(inp, adj))
+        return torch.cat(eng, dim=1)
 
 
 class QuadraticRestraints(nn.Module):
@@ -30,8 +42,9 @@ class QuadraticRestraints(nn.Module):
         col: Tensor = self.col(inp, adj)
         # col.size() == (n_bch, n_col)
         assert col.dim() == 2
+        assert col.size(0) == inp[p.pos].size(0)
         eff = (col.sign() * self.sgn) >= 0
-        res = (col * col * self.k * eff).sum(1)
+        res = (col * col * self.k * eff)
         return res
 
 
@@ -64,4 +77,4 @@ class ClosePenalty(nn.Module):
             0, n * n_atm + i, eng_bnd
         ).view((n_bch, n_atm))
         eng_mol = eng_atm.sum(1)
-        return eng_mol
+        return eng_mol.unsqueeze(1)
