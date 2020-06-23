@@ -1,7 +1,9 @@
-from typing import Dict, NamedTuple
+from typing import Dict, NamedTuple, Union
 
 import torch
 from torch import Tensor, nn
+
+from pointneighbor import AdjSftSpc
 
 from .. import properties as p
 
@@ -17,7 +19,8 @@ def gaussian_potential(col, hil: MTDHillsData):
     r = hil.cen[:, None, :] - col[None, :, :]  # mtd, bch, col
     v = var[:, None, :]
     h = hil.hgt[:, None]
-    return (h * torch.exp(-0.5 * (r * r / v).sum(-1))).sum(0)
+    ret = (h * torch.exp(-0.5 * (r * r / v).sum(-1))).sum(0)
+    return ret
 
 
 def add_gaussian(hil: MTDHillsData, cen: Tensor, wdt: Tensor, hgt: Tensor):
@@ -45,18 +48,28 @@ class MTDHills(nn.Module):
 
 
 class MetaDynamics(nn.Module):
-    def __init__(self, col, hil: MTDHills, wdt: Tensor, hgt: Tensor):
+    """
+    Args:
+        col: colvar
+        hil: MTDHills
+        wdt (float[n_col]): width of gaussian
+        hgt (float): height of gaussian
+    """
+    def __init__(self, col, hil: MTDHills, wdt: Tensor,
+                 hgt: Union[float, Tensor]):
+        if isinstance(hgt, float):
+            hgt = torch.tensor(hgt)
         super().__init__()
         self.col = col
         self.hil = hil
         self.wdt = wdt
         self.hgt = hgt
 
-    def forward(self, inp: Dict[str, Tensor]):
-        return gaussian_potential(self.col(inp), self.hil())
+    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        return gaussian_potential(self.col(inp, adj), self.hil())[:, None]
 
-    def append(self, inp: Dict[str, Tensor]):
-        col = self.col(inp)
+    def append(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        col = self.col(inp, adj)
         n_bch = col.size(0)
         wdt = self.wdt[None, :].expand((n_bch, -1))
         hgt = self.hgt[None].expand((n_bch, ))
@@ -64,8 +77,21 @@ class MetaDynamics(nn.Module):
 
 
 class WellTemparedMetaDynamics(nn.Module):
+    """
+    Args:
+        col: colvar
+        hil: MTDHills
+        wdt (float[n_col]): width of gaussian
+        hgt (float): height of gaussian
+        gam (float): gamma
+    """
     def __init__(self, col, hil: MTDHills,
-                 wdt: Tensor, hgt: Tensor, gam: Tensor):
+                 wdt: Tensor, hgt: Union[float, Tensor],
+                 gam: Union[float, Tensor]):
+        if isinstance(hgt, float):
+            hgt = torch.tensor(hgt)
+        if isinstance(gam, float):
+            gam = torch.tensor(gam)
         super().__init__()
         self.col = col
         self.hil = hil
@@ -73,11 +99,12 @@ class WellTemparedMetaDynamics(nn.Module):
         self.hgt = hgt
         self.gam = gam
 
-    def forward(self, inp: Dict[str, Tensor]):
-        return gaussian_potential(self.col(inp), self.hil())
+    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        ret = gaussian_potential(self.col(inp, adj), self.hil())
+        return ret[:, None]
 
-    def append(self, inp: Dict[str, Tensor]):
-        col = self.col(inp)
+    def append(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+        col = self.col(inp, adj)
         n_bch = col.size(0)
         kbt = inp[p.kbt]
         det = self.gam * kbt - kbt
@@ -85,3 +112,4 @@ class WellTemparedMetaDynamics(nn.Module):
         wdt = self.wdt[None, :].expand((n_bch, -1))
         hgt = self.hgt[None].expand((n_bch, )) * torch.exp(-eng / det)
         self.hil.set_hills(add_gaussian(self.hil(), col, wdt, hgt))
+        return MTDHillsData(cen=col, wdt=wdt, hgt=hgt)

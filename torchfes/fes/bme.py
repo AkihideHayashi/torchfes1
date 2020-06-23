@@ -8,8 +8,6 @@ from typing import Dict, List, NamedTuple
 import torch
 from torch import Tensor, nn
 
-from pointneighbor import AdjSftSpc
-
 from .. import properties as p
 
 
@@ -24,9 +22,16 @@ def bme_postprocess(lmd: Tensor, kbt: Tensor, cor: Tensor, fix: Tensor):
 
 
 class BMEV(NamedTuple):
+    r"""
+    \frac{\pd A}{\pd \sigma} = \frac{z^(1/2)(\lambda + GTk)}{z^(1/2)}
+    jac: \frac{\pd \sigma}{\pd r}
+    mmt: mass-metric tensor z
+    cor: correction G
+    fix: fixman correction z^(-1/2)
+    """
     jac: Tensor  # pd sigma / pd r
     mmt: Tensor  # mass-metric tensor "z".
-    cor: Tensor  # g
+    cor: Tensor  # G
     fix: Tensor  # fixman correction z^(-0.5)
 
 
@@ -76,9 +81,9 @@ class BMEVariables(nn.Module):
         super().__init__()
         self.con = con
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+    def forward(self, inp: Dict[str, Tensor]):
         out = requires_grad(inp, [p.pos])
-        con = self.con(out, adj)
+        con = self.con(out)
         jac = jacobian(con, out[p.pos])
         mmt = bme_z(out[p.mas], jac)
         cor = bme_g(out[p.pos], out[p.mas], jac, mmt) * inp[p.kbt][:, None]
@@ -133,7 +138,7 @@ class Shake(nn.Module):
         self.tol = tol
         self.debug = debug
 
-    def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor, adj: AdjSftSpc):
+    def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor):
         pos = inp[p.pos].clone()
         mom = inp[p.mom].clone()
         out = inp.copy()
@@ -146,7 +151,7 @@ class Shake(nn.Module):
             frc = -(lmd[:, :, None, None] * jac_prv).sum(1)
             out[p.pos] = pos + frc / mas * dtm * dtm
             out[p.mom] = mom + frc * dtm
-            con = self.con(out, adj)
+            con = self.con(out)
             if con.abs().max() < self.tol:
                 break
             jac = jacobian(con, lmd)

@@ -23,8 +23,21 @@ def kinetic_energies(mom: Tensor, mas: Tensor, ent: Tensor):
     return (kin * ent).sum(-1)
 
 
+def kinetic_energies_trajectory(mom: Tensor, mas: Tensor, ent: Tensor):
+    return torch.stack([
+        kinetic_energies(mom_i, mas_i, ent_i) for mom_i, mas_i, ent_i in
+        zip(mom, mas, ent)])
+
+
+def temperatures_trajectory(kin: Tensor, ent: Tensor,
+                            ddof: Union[int, Tensor] = 3, ndim: int = 3):
+    return torch.stack([
+        temperatures(kin_i, ent_i, ddof, ndim) for kin_i, ent_i in
+        zip(kin, ent)])
+
+
 def temperatures(kin: Tensor, ent: Tensor,
-                 ddof: Union[Tensor, int] = 0, ndim: int = 3):
+                 ddof: Union[Tensor, int] = 3, ndim: int = 3):
     if ddof is int:
         ddof = torch.ones_like(kin) * ddof
     dof = (ent.sum(-1) * ndim) - ddof

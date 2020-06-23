@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Dict, List, Union
+import multiprocessing
 
 import h5py
 import torch
@@ -114,3 +115,50 @@ class HDF5Recorder:
     def extend(self, inps: List[Dict[str, Tensor]]):
         for inp in inps:
             self.append(inp)
+
+
+def loop_hdf5(path: Path, queue: multiprocessing.Queue):
+    while True:
+        data = queue.get()
+        if len(data) == 0:
+            break
+        with HDF5Recorder(path, 'a') as f:
+            f.append(data)
+
+
+def create_loop(path):
+    queue = multiprocessing.Queue()
+    process = multiprocessing.Process(target=loop_hdf5, args=(path, queue))
+    process.start()
+    return process, queue
+
+
+def hdf5_recorder_mp(path: Union[str, Path], init=False):
+    return HDF5RecorderMP(path, init)
+
+
+class HDF5RecorderMP:
+    def __init__(self, path: Union[str, Path], init=False):
+        if isinstance(path, str):
+            path = Path(path)
+        if init and path.is_file():
+            path.unlink()
+        self.path = path
+        self.process, self.queue = create_loop(path)
+
+    def append(self, inp: Dict[str, Tensor]):
+        self.queue.put(inp)
+
+    def extend(self, inps: List[Dict[str, Tensor]]):
+        for inp in inps:
+            self.append(inp)
+
+    def close(self):
+        self.queue.put({})
+        self.process.join()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()

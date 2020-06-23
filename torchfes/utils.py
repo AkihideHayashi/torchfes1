@@ -60,4 +60,4 @@ def _grad_inner(out: Tensor, inp: Tensor, grd_out: Optional[Tensor],
 
 def pnt_ful(inp: Dict[str, Tensor]):
     return pn.pnt_ful(
-        cel=inp[p.cel], pbc=inp[p.pbc], pos=inp[p.pos], ent=inp[p.ent])
+        cel_mat=inp[p.cel], pbc=inp[p.pbc], pos_xyz=inp[p.pos], ent=inp[p.ent])

@@ -60,11 +60,11 @@ class EvalEnergiesForces(nn.Module):
                                   retain_graph=retain_graph)
             out[p.frc] = out[p.frc_mol] + out[p.frc_res]
         if frc_cel:
-            out[p.str_mol] = grad(-eng_mol, cel, create_graph=frc_grd,
+            out[p.sts_mol] = grad(-eng_mol, cel, create_graph=frc_grd,
                                   retain_graph=retain_graph)
-            out[p.str_res] = grad(-eng_res, pos, create_graph=frc_grd,
+            out[p.sts_res] = grad(-eng_res, pos, create_graph=frc_grd,
                                   retain_graph=retain_graph)
-            out[p.str] = out[p.str_mol] + out[p.str_res]
+            out[p.sts] = out[p.sts_mol] + out[p.sts_res]
         if retain_graph is None:
             retain_graph = frc_grd
         if not retain_graph:
