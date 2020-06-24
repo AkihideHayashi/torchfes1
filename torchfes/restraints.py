@@ -3,8 +3,7 @@ from typing import Dict, List
 import torch
 from torch import Tensor, nn
 
-import pointneighbor as pn
-from pointneighbor import AdjSftSpc
+import torchfes as fes
 
 from . import properties as p
 
@@ -14,10 +13,10 @@ class MultipleRestraints(nn.Module):
         super().__init__()
         self.restraints = restraints
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+    def forward(self, inp: Dict[str, Tensor]):
         eng = []
         for restraint in self.restraints:
-            eng.append(restraint(inp, adj))
+            eng.append(restraint(inp))
         return torch.cat(eng, dim=1)
 
 
@@ -38,8 +37,8 @@ class QuadraticRestraints(nn.Module):
         self.sgn = sgn
         self.k = k
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        col: Tensor = self.col(inp, adj)
+    def forward(self, inp: Dict[str, Tensor]):
+        col: Tensor = self.col(inp)
         # col.size() == (n_bch, n_col)
         assert col.dim() == 2
         assert col.size(0) == inp[p.pos].size(0)
@@ -56,10 +55,11 @@ class ClosePenalty(nn.Module):
         super().__init__()
         self.register_buffer('k', k)
         self.register_buffer('radius', radius)
+        self.rc = self.radius.max().item() * 2
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        rc = self.radius.max().item() * 2
-        adj, vec_sod = pn.coo2_adj_vec_sod(adj, inp[p.pos], inp[p.cel], rc)
+    def forward(self, inp: Dict[str, Tensor]):
+        adj = fes.nb.get_adj_sft_spc(inp, p.coo, self.rc)
+        vec_sod = fes.nb.get_vec_sod(inp, p.coo, self.rc)
         n, i, j, _ = adj.adj.unbind(0)
         ei = inp[p.elm][n, i]
         ej = inp[p.elm][n, j]

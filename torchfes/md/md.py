@@ -25,7 +25,8 @@ class PQP(nn.Module):
         out = update_mom(inp, 0.5)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         out = update_mom(out, 0.5)
         return out
 
@@ -42,7 +43,8 @@ class PQ(nn.Module):
         out = update_mom(inp, 1.0)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         return out
 
 
@@ -61,7 +63,8 @@ class PQF(nn.Module):
         out = update_mom(inp, 1.0)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         out = self.fire(out)
         return out
 
@@ -81,7 +84,8 @@ class PQPF(nn.Module):
         out = update_mom(inp, 0.5)
         out = update_pos(out, 1.0)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         out = update_mom(out, 0.5)
         out = self.fire(out)
         return out
@@ -102,7 +106,8 @@ class PQTQ(nn.Module):
         out = self.kbt(out, 1.0)
         out = update_pos(out, 0.5)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         return out
 
 
@@ -121,7 +126,8 @@ class PQTQP(nn.Module):
         out = self.kbt(out, 1.0)
         out = update_pos(out, 0.5)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         out = update_mom(out, 0.5)
         return out
 
@@ -140,7 +146,8 @@ class TPQPT(nn.Module):
         out = update_mom(out, 0.5)
         out = update_pos(out, 0.5)
         out = update_tim(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         out = update_mom(out, 0.5)
         out = self.kbt(out, 0.5)
         return out
@@ -161,7 +168,8 @@ class PTPQ(nn.Module):
         out = update_mom(out, 0.5)
         out = update_tim(out, 1.0)
         out = update_pos(out, 1.0)
-        out = self.evl(out, self.adj(pnt_ful(out)))
+        out = self.adj(out)
+        out = self.evl(out)
         return out
 
 
@@ -175,27 +183,18 @@ class PQS(nn.Module):
         self.adj = adj
         self.shk = Shake(con, tol)
         self.bme = BMEVariables(con)
-        self.adj_tmp = AdjSftSpcStorage()
-
-    def get_adj_tmp(self, inp: Dict[str, Tensor]):
-        if self.adj_tmp.empty():
-            adj: AdjSftSpc = self.adj(pnt_ful(inp))
-            self.adj_tmp(adj)
-        return self.adj_tmp()
 
     def forward(self, inp: Dict[str, Tensor]):
         out = inp.copy()
         out = update_mom(out, 1.0)
         out = update_tim(out, 1.0)
 
-        adj: AdjSftSpc = self.get_adj_tmp(out)
-
-        bme: BMEV = self.bme(out, adj)
+        bme: BMEV = self.bme(out)
         out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac, adj)
-        adj = self.adj(pnt_ful(out))
-        self.adj_tmp(adj)
-        out = self.evl(out, adj)
+        out, lmd = self.shk(out, bme.jac)
+
+        out = self.adj(out)
+        out = self.evl(out)
 
         out[p.bme_lmd] = lmd.detach()
         out[p.bme_cor] = bme.cor.detach()
@@ -230,13 +229,12 @@ class PTPQS(nn.Module):
         out = update_mom(out, 0.5)
         out = update_tim(out, 1.0)
 
-        adj: AdjSftSpc = self.get_adj_tmp(out)
-        bme: BMEV = self.bme(out, adj)
+        bme: BMEV = self.bme(out)
         out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac, adj)
-        adj = self.adj(pnt_ful(out))
-        self.adj_tmp(adj)
-        out = self.evl(out, adj)
+        out, lmd = self.shk(out, bme.jac)
+
+        out = self.adj(out)
+        out = self.evl(out)
 
         out[p.bme_lmd] = lmd.detach()
         out[p.bme_cor] = bme.cor.detach()
@@ -266,14 +264,14 @@ class TPQSPTR(nn.Module):
         self.str_bme_cor = torch.tensor([])
         self.adj_tmp = AdjSftSpcStorage()
 
-    def get_bme(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
+    def get_bme(self, inp: Dict[str, Tensor]):
         if self.str_bme_jac.numel() == 0:
-            self.set_bme(inp, adj)
+            self.set_bme(inp)
         return BMEV(jac=self.str_bme_jac, mmt=self.str_bme_mmt,
                     fix=self.str_bme_fix, cor=self.str_bme_cor)
 
-    def set_bme(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        bme: BMEV = self.bme(inp, adj)
+    def set_bme(self, inp: Dict[str, Tensor]):
+        bme: BMEV = self.bme(inp)
         self.str_bme_mmt = bme.mmt
         self.str_bme_jac = bme.jac
         self.str_bme_fix = bme.fix
@@ -288,22 +286,22 @@ class TPQSPTR(nn.Module):
     def forward(self, inp: Dict[str, Tensor]):
         out = inp.copy()
 
-        adj: AdjSftSpc = self.get_adj_tmp(out)
-        bme: BMEV = self.get_bme(out, adj)
+        bme: BMEV = self.get_bme(out)
 
         out = self.kbt(out, 0.5)
         out = update_mom(out, 0.5)
         out = update_tim(out, 1.0)
         out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac, adj)
-        adj = self.adj(pnt_ful(out))
-        self.adj_tmp(adj)
-        out = self.evl(out, adj)
+        out, lmd = self.shk(out, bme.jac)
+
+        out = self.adj(out)
+        out = self.evl(out)
+
         out = update_mom(out, 0.5)
         out = self.kbt(out, 0.5)
 
-        self.set_bme(out, adj)
-        tmp = self.get_bme(out, adj)
+        self.set_bme(out)
+        tmp = self.get_bme(out)
         out, lmd_rtl = self.rtl(out, tmp.jac)
 
         out[p.bme_lmd] = lmd.detach() + self.lmd_rtl

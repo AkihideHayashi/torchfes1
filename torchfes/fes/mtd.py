@@ -3,8 +3,6 @@ from typing import Dict, NamedTuple, Union
 import torch
 from torch import Tensor, nn
 
-from pointneighbor import AdjSftSpc
-
 from .. import properties as p
 
 
@@ -65,11 +63,11 @@ class MetaDynamics(nn.Module):
         self.wdt = wdt
         self.hgt = hgt
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        return gaussian_potential(self.col(inp, adj), self.hil())[:, None]
+    def forward(self, inp: Dict[str, Tensor]):
+        return gaussian_potential(self.col(inp), self.hil())[:, None]
 
-    def append(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        col = self.col(inp, adj)
+    def append(self, inp: Dict[str, Tensor]):
+        col = self.col(inp)
         n_bch = col.size(0)
         wdt = self.wdt[None, :].expand((n_bch, -1))
         hgt = self.hgt[None].expand((n_bch, ))
@@ -99,12 +97,12 @@ class WellTemparedMetaDynamics(nn.Module):
         self.hgt = hgt
         self.gam = gam
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        ret = gaussian_potential(self.col(inp, adj), self.hil())
+    def forward(self, inp: Dict[str, Tensor]):
+        ret = gaussian_potential(self.col(inp), self.hil())
         return ret[:, None]
 
-    def append(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        col = self.col(inp, adj)
+    def append(self, inp: Dict[str, Tensor]):
+        col = self.col(inp)
         n_bch = col.size(0)
         kbt = inp[p.kbt]
         det = self.gam * kbt - kbt

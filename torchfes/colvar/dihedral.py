@@ -1,6 +1,5 @@
 from typing import Dict
 from torch import Tensor, nn
-from pointneighbor import AdjSftSpc
 from .. import properties as p
 
 
@@ -18,5 +17,5 @@ class Dihedral(nn.Module):
         super().__init__()
         self.num = num
 
-    def forward(self, inp: Dict[str, Tensor], _: AdjSftSpc):
+    def forward(self, inp: Dict[str, Tensor]):
         return dihedral(inp[p.pos], self.num)

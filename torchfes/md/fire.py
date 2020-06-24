@@ -51,11 +51,11 @@ class FIRE(nn.Module):
         self.count = torch.tensor([])
 
     def reset(self, inp: Dict[str, Tensor]):
-        self.a = torch.ones_like(inp[p.eng_tot]) * self.a0
+        self.a = torch.ones_like(inp[p.eng]) * self.a0
         self.count = torch.zeros_like(self.a)
 
     def forward(self, inp: Dict[str, Tensor]):
-        if self.a.size() != inp[p.eng_tot].size():
+        if self.a.size() != inp[p.eng].size():
             self.reset(inp)
         dtm = inp[p.dtm]
         vel = inp[p.mom] / inp[p.mas][:, :, None]
@@ -70,10 +70,11 @@ class FIRE(nn.Module):
         dtm[positive] *= self.f_inc
         dtm.clamp_max_(self.dtm_max)
         self.a[positive] *= self.f_a
-        self.count[negative] = 0
+        self.count[negative] = torch.zeros_like(self.count[negative])
         dtm[negative] *= self.f_dec
-        vel_new[negative] = 0
-        self.a[negative] = self.a0
+        vel_new[negative] *= torch.zeros_like(vel_new[negative])
+        self.a[negative] = torch.ones_like(
+            negative, dtype=self.a.dtype) * self.a0
         out = inp.copy()
         out[p.mom] = vel_new * out[p.mas][:, :, None]
         out[p.dtm] = dtm

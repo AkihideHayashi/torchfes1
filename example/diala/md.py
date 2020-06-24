@@ -11,6 +11,7 @@ from pnpot.nn.torchani import from_torchani
 import pointneighbor as pn
 from torchfes.data.collate import ToDictTensor
 from torchfes import forcefield as ff, md, inp, properties as p, api
+import torchfes as fes
 from torchfes.recorder.torch import TorchRecorder
 
 
@@ -33,13 +34,23 @@ def main():
     inp.add_nvt(mol, 0.5 * fs, 300 * kB)
     inp.add_global_langevin(mol, 100.0 * fs)
     model_torchani = torchani.models.ANI1ccx()
-    mdl = api.Unit(from_torchani(model_torchani), Ha)
+    mdl = api.Unit(from_torchani(model_torchani, p.coo), Ha)
     eng = ff.EvalEnergies(mdl)
-    rc = mdl.mdl.aev.rad.rc
+    rc_r = mdl.mdl.aev.rad.rc
+    rc_a = mdl.mdl.aev.ang.rc
     delta = 1.0
-    adj = pn.Coo2BookKeeping(
-        pn.Coo2FulSimple(rc + delta), pn.StrictCriteria(delta), rc)
-    dyn = jit.script(md.PQP(eng, adj).to(device))
+    adj = fes.adj.SetAdjSftSpcVecSod(
+        pn.Coo2BookKeeping(
+            pn.Coo2FulSimple(rc_r + delta), pn.StrictCriteria(delta), rc_r),
+        [
+            (p.coo, rc_r, True),
+            (p.coo, rc_a, True),
+        ]
+    )
+
+    dyn = jit.script(md.TPQPT(eng, adj, md.GlobalLangevin()).to(device))
+    # dyn = jit.script(md.PQPF(eng, adj, 0.9, 5, 0.9, 1.1, 0.9, 1.0 * fs).to(
+    #     device, torch.float32))
     # num_dihed = torch.tensor([[11, 9, 15, 17], [11, 9, 7, 5]]) - 1
     # colvar = Dihedral(num_dihed)
     timer = Timer()

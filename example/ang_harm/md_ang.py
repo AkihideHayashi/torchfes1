@@ -10,6 +10,7 @@ from torchfes.forcefield import EvalEnergies, EvalEnergiesForces
 from torchfes.utils import sym_to_elm
 from torchfes.inp import init_inp, add_nvt, add_global_langevin
 from torchfes import md, api, data
+import torchfes as fes
 from torchfes import properties as p
 from torchfes.restraints import QuadraticRestraints
 from torchfes.colvar import ColVarSft
@@ -22,7 +23,7 @@ class Potential(nn.Module):
         self.k = k
         self.r0 = r0
 
-    def forward(self, inp: Dict[str, Tensor], _: AdjSftSpc):
+    def forward(self, inp: Dict[str, Tensor]):
         pos = inp[p.pos]
         rr1 = pos[:, 0, :]
         rr2 = pos[:, 1, :]
@@ -40,7 +41,7 @@ class Potential(nn.Module):
 
 
 class Ang213(nn.Module):
-    def forward(self, inp: Dict[str, Tensor], _: AdjSftSpc):
+    def forward(self, inp: Dict[str, Tensor]):
         pos = inp[p.pos]
         rr1 = pos[:, 0, :]
         rr2 = pos[:, 1, :]
@@ -89,7 +90,9 @@ def main():
         QuadraticRestraints(
             collective, torch.tensor([0]), torch.tensor([100.0]))
     )
-    adj = pn.Coo2FulSimple(100.0)
+    adj = fes.adj.SetAdjSftSpcVecSod(
+        adj=pn.Coo2FulSimple(100.0), cut=[(p.coo, 100.0, False)]
+    )
     kbt = md.unified.GlobalLangevin()
     dyn = md.PTPQ(eng, adj, kbt)
 
@@ -101,7 +104,7 @@ def main():
     with hdf5_recorder('md.hdf5', 'w') as rec:
         for i in range(50000):
             inp = dyn(inp)
-            cor = colvar(inp, None)
+            cor = colvar(inp)
             inp['colvar'] = cor
             print(i, '/ 50000', timer.value())
             rec.append(inp)

@@ -9,6 +9,7 @@ from torchfes import properties as p
 from torchfes.forcefield import EvalEnergiesForcesGeneral, EvalEnergies
 from torchfes.inp import init_inp, add_nvt
 from torchfes import opt as fopt
+import torchfes as fes
 from torchfes.general import cartesian_coordinate, CartesianCoordinate
 
 
@@ -41,7 +42,8 @@ def main():
 
     gen = CartesianCoordinate()
     eng = EvalEnergies(Quadratic(torch.tensor([10.0, 1.0, 0.1])))
-    adj = pn.Coo2FulSimple(10.0)
+    adj = fes.nb.SetAdjSftSpcVecSod(
+        pn.Coo2FulSimple(10.0), [(p.coo, 10.0, False)])
     evl_gen = EvalEnergiesForcesGeneral(eng, gen, adj)
     env = make_inp()
     sync = False

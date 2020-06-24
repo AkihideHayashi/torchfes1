@@ -2,12 +2,10 @@ from typing import Dict, Optional
 
 from torch import Tensor, nn
 
-from pointneighbor import AdjSftSpc
-
 from . import properties as p
 from .api import Energies
 from .general import PosEngFrc
-from .utils import detach_, grad, pnt_ful
+from .utils import detach_, grad
 
 
 class EvalEnergies(nn.Module):
@@ -16,11 +14,11 @@ class EvalEnergies(nn.Module):
         self.mdl = mdl
         self.res = res
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc):
-        eng_mdl: Energies = self.mdl(inp, adj)
+    def forward(self, inp: Dict[str, Tensor]):
+        eng_mdl: Energies = self.mdl(inp)
         n_bch = inp[p.pos].size(0)
         if self.res is not None:
-            eng_res = self.res(inp, adj)
+            eng_res = self.res(inp)
         else:
             eng_res = eng_mdl.eng_mol.new_zeros([n_bch, 0])
         eng_tot = eng_mdl.eng_mol + eng_res.sum(1)
@@ -39,7 +37,7 @@ class EvalEnergiesForces(nn.Module):
         super().__init__()
         self.eng = eng
 
-    def forward(self, inp: Dict[str, Tensor], adj: AdjSftSpc,
+    def forward(self, inp: Dict[str, Tensor],
                 frc_pos: bool = True, frc_cel: bool = False,
                 frc_grd: bool = False, retain_graph: Optional[bool] = None):
         pos = inp[p.pos]
@@ -48,7 +46,7 @@ class EvalEnergiesForces(nn.Module):
             pos.requires_grad_()
         if frc_cel and not cel.requires_grad:
             cel.requires_grad_()
-        out: Dict[str, Tensor] = self.eng(inp, adj)
+        out: Dict[str, Tensor] = self.eng(inp)
         eng_mol = out[p.eng_mol]
         eng_res = out[p.eng_res].sum(1)
         assert eng_mol.dim() == 1
@@ -85,8 +83,8 @@ class EvalEnergiesForcesGeneral(nn.Module):
         if not pos.requires_grad:
             pos = pos.clone().requires_grad_()
         inp = self.gen(env, pos)
-        adj = self.adj(pnt_ful(inp))
-        out = self.eng(inp, adj, retain_graph=True)
+        out = self.adj(inp)
+        out = self.eng(out, retain_graph=True)
         eng_tot = out[p.eng]
         frc = grad(-eng_tot, pos, create_graph=frc_grd)
         if not frc_grd:

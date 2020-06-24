@@ -1,10 +1,7 @@
-from typing import Dict, NamedTuple
+from typing import Dict, NamedTuple, Optional
 
+import torch
 from torch import Tensor, nn
-
-import pointneighbor as pn
-
-from . import properties as p
 
 
 class Energies(NamedTuple):
@@ -14,9 +11,15 @@ class Energies(NamedTuple):
     eng_atm_std: Tensor
 
 
-def pnt_ful(inp: Dict[str, Tensor]):
-    return pn.pnt_ful(cel=inp[p.cel], pbc=inp[p.pbc],
-                      pos=inp[p.pos], ent=inp[p.ent])
+def energies(eng_mol: Tensor, eng_atm: Tensor,
+             eng_mol_std: Optional[Tensor] = None,
+             eng_atm_std: Optional[Tensor] = None):
+    if eng_mol_std is None:
+        eng_mol_std = torch.zeros_like(eng_mol)
+    if eng_atm_std is None:
+        eng_atm_std = torch.zeros_like(eng_atm)
+    return Energies(eng_mol=eng_mol, eng_atm=eng_atm,
+                    eng_mol_std=eng_mol_std, eng_atm_std=eng_atm_std)
 
 
 class Unit(nn.Module):
@@ -25,8 +28,8 @@ class Unit(nn.Module):
         self.mdl = mdl
         self.u = u
 
-    def forward(self, inp: Dict[str, Tensor], adj: pn.AdjSftSpc):
-        eng: Energies = self.mdl(inp, adj)
+    def forward(self, inp: Dict[str, Tensor]):
+        eng: Energies = self.mdl(inp)
         return Energies(
             eng_mol=eng.eng_mol * self.u,
             eng_atm=eng.eng_atm * self.u,
