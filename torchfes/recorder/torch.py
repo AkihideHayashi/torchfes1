@@ -1,5 +1,4 @@
 import warnings
-from itertools import count
 import multiprocessing
 from typing import Union, Dict, List
 from pathlib import Path
@@ -20,31 +19,31 @@ def read_trj(path: Union[str, Path], properties: List[str]):
     return [torch.stack(data_lst[key]) for key in properties]
 
 
-def _loop_torch(path: Path, mode: str,
-                queue: multiprocessing.Queue, step: int):
+def _loop_torch(path: Path, mode: str, queue: multiprocessing.Queue):
     with open(path, mode) as f:
-        for i in count():
+        while True:
             data = queue.get()
             if len(data) == 0:
                 break
-            if i % step == 0:
-                torch.save(data, f)
-                f.flush()
+            torch.save(data, f)
+            f.flush()
 
 
-def _create_loop(path: Path, mode: str, step: int):
+def _create_loop(path: Path, mode: str):
     queue: multiprocessing.Queue = multiprocessing.Queue()
     process = multiprocessing.Process(
-        target=_loop_torch, args=(path, mode, queue, step))
+        target=_loop_torch, args=(path, mode, queue))
     process.start()
     return process, queue
 
 
 class TorchRecorder:
-    def __init__(self, path: Union[str, Path], mode: str, step: int = 1):
+    def __init__(self, path: Union[str, Path], mode: str):
         if isinstance(path, str):
             path = Path(path)
-        self.process, self.queue = _create_loop(path, mode, step)
+        if mode in ('r', 'w', 'a'):
+            mode = mode + 'b'
+        self.process, self.queue = _create_loop(path, mode)
 
     def append(self, inp: Dict[str, Tensor]):
         if self.queue.full():

@@ -3,7 +3,6 @@ from torch import Tensor
 from .. import properties as p
 
 
-class Selector:
-    def __call__(self, inp: Dict[str, Tensor]):
-        return {key: val.to('cpu') for key, val in inp.items()
-                if not p.is_tmp(key)}
+def not_tmp(inp: Dict[str, Tensor]):
+    return {key: val.to('cpu') for key, val in inp.items()
+            if not p.is_tmp(key)}

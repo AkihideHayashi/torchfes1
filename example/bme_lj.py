@@ -14,7 +14,7 @@ from torchfes.inp import init_inp, add_nvt, add_global_nose_hoover_chain
 import torchfes as fes
 from torchfes import md
 from torchfes import properties as p
-from torchfes.recorder.xyz import XYZRecorder
+from torchfes.recorder import XYZRecorder, TorchRecorder, not_tmp
 
 
 class R12(nn.Module):
@@ -145,22 +145,24 @@ def main():
         bme = True
     dyn = jit.script(dyn)
 
-    xyz = XYZRecorder('xyz', 'w', ['Ar'], 1)
     timer = ignite.handlers.Timer()
-    while True:
-        inp = dyn(inp)
-        tim = inp[p.tim].item() / fs
-        tim = round(decimal.Decimal(tim), 1)
-        eng = round(decimal.Decimal(inp[p.eng].item() / Ha), 10)
-        if bme:
-            lmd = round(decimal.Decimal(inp[p.bme_lmd].item() / Ha), 7)
-            print(f'{tim:>5} {eng:> 7} {lmd:> 7}')
-        else:
-            print(f'{tim:>5} {eng:> 7}')
-        xyz.append(inp)
-        if tim >= 10.0:
-            break
-    print(timer.value())
+    with XYZRecorder('xyz', 'w', ['Ar'], 1) as xyz,\
+            TorchRecorder('trj.pt', 'w') as rec:
+        while True:
+            inp = dyn(inp)
+            tim = inp[p.tim].item() / fs
+            tim = round(decimal.Decimal(tim), 1)
+            eng = round(decimal.Decimal(inp[p.eng].item() / Ha), 10)
+            if bme:
+                lmd = round(decimal.Decimal(inp[p.bme_lmd].item() / Ha), 7)
+                print(f'{tim:>5} {eng:> 7} {lmd:> 7}')
+            else:
+                print(f'{tim:>5} {eng:> 7}')
+            xyz.append(inp)
+            rec.append(not_tmp(inp))
+            if tim >= 10.0:
+                break
+        print(timer.value())
 
 
 if __name__ == "__main__":
