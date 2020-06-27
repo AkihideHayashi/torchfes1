@@ -7,20 +7,20 @@ from .. import properties as p
 from ..functional import noise
 
 
-def update_tim(inp: Dict[str, Tensor], stp: float):
+def updt_tim(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     out[p.tim] = out[p.tim] + out[p.dtm] * stp
     return out
 
 
-def update_mom(inp: Dict[str, Tensor], stp: float):
+def updt_mom(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     dtm = out[p.dtm][:, None, None]
     out[p.mom] = out[p.mom] + out[p.frc] * dtm * stp
     return out
 
 
-def update_pos(inp: Dict[str, Tensor], stp: float):
+def updt_pos(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     dtm = out[p.dtm][:, None, None]
     mas = out[p.mas][:, :, None]

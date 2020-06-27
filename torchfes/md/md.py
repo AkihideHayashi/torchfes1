@@ -3,110 +3,134 @@ from typing import Dict
 import torch
 from torch import Tensor, nn
 
-from pointneighbor import AdjSftSpc, AdjSftSpcStorage
-
-from .. import properties as p
-from ..fes.bme import BMEV, BMEVariables, Rattle, Shake
+from ..fes.bme import BMEJac, BMERtl, BMEShk, bme_det_lmd, BMEKTGFix
 from .fire import FIRE
-from .unified import update_mom, update_pos, update_tim
-from ..utils import pnt_ful
-from ..forcefield import EvalEnergiesForces
+from .unified import updt_mom, updt_pos, updt_tim
+from ..forcefield import EvalEnergiesForces, EvalEnergies
+from .. import properties as p
 
 
-class PQP(nn.Module):
-    """NVE Velocity Verlet"""
+class AdjEvl(nn.Module):
+    """A series of procedures before and after evaluating energy."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module):
+    def __init__(self, adj, evl):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
         self.adj = adj
+        self.evl = evl
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 0.5)
-        out = update_pos(out, 1.0)
-        out = update_tim(out, 1.0)
+        out = updt_tim(inp, 1.0)
         out = self.adj(out)
         out = self.evl(out)
-        out = update_mom(out, 0.5)
         return out
+
+
+class BMEAdjEvl(nn.Module):
+    """A series of procedures before and after evaluating energy."""
+
+    def __init__(self, adj, evl, col, ktg_fix: bool):
+        super().__init__()
+        self.adj = adj
+        self.evl = evl
+        self.ktg_fix = ktg_fix
+        self.bme_jac = BMEJac(col, ktg_fix)
+        self.bme_ktg_fix = BMEKTGFix(col)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = bme_det_lmd(inp)
+        out = updt_tim(out, 1.0)
+        out = self.adj(out)
+        out = self.evl(out)
+        out = self.bme_jac(out)
+        if self.ktg_fix:
+            out = self.bme_ktg_fix(out)
+        return out
+
+
+class Reset(nn.Module):
+    """Reset variables for 1st step."""
+
+    def __init__(self, adj_evl):
+        super().__init__()
+        self.adj_evl = adj_evl
+
+    def forward(self, inp: Dict[str, Tensor]):
+        if p.sld_rst not in inp:
+            inp[p.sld_rst] = inp[p.dtm] == inp[p.dtm]
+        if inp[p.sld_rst].any():
+            out = self.adj_evl(inp)
+            out[p.sld_rst] = torch.zeros_like(out[p.sld_rst])
+            return out
+        else:
+            return inp
 
 
 class PQ(nn.Module):
     """NVE Leap frog."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 1.0)
-        out = update_pos(out, 1.0)
-        out = update_tim(out, 1.0)
-        out = self.adj(out)
+        out = self.reset(inp)
+        out = updt_mom(out, 1.0)
+        out = updt_pos(out, 1.0)
         out = self.evl(out)
+        return out
+
+
+class PQP(nn.Module):
+    """NVE Velocity Verlet"""
+
+    def __init__(self, eng: EvalEnergies, adj: nn.Module):
+        super().__init__()
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = self.reset(inp)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 1.0)
+        out = self.evl(out)
+        out = updt_mom(out, 0.5)
         return out
 
 
 class PQF(nn.Module):
     """Leap frog FIRE."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module,
-                 a0: float, n_min: int, f_a: float,
-                 f_inc: float, f_dec: float, dtm_max: float):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, fire: FIRE):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
-        self.fire = FIRE(a0, n_min, f_a, f_inc, f_dec, dtm_max)
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
+        self.fir = fire
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 1.0)
-        out = update_pos(out, 1.0)
-        out = update_tim(out, 1.0)
-        out = self.adj(out)
+        out = self.reset(inp)
+        out = updt_mom(out, 1.0)
+        out = updt_pos(out, 1.0)
         out = self.evl(out)
-        out = self.fire(out)
-        return out
-
-
-class PQPF(nn.Module):
-    """NVE Velocity Verlet"""
-
-    def __init__(self, eng: nn.Module, adj: nn.Module,
-                 a0: float, n_min: int, f_a: float,
-                 f_inc: float, f_dec: float, dtm_max: float):
-        super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
-        self.fire = FIRE(a0, n_min, f_a, f_inc, f_dec, dtm_max)
-
-    def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 0.5)
-        out = update_pos(out, 1.0)
-        out = update_tim(out, 1.0)
-        out = self.adj(out)
-        out = self.evl(out)
-        out = update_mom(out, 0.5)
-        out = self.fire(out)
+        out = self.fir(out)
         return out
 
 
 class PQTQ(nn.Module):
     """High precision NVT Leap Frog"""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 1.0)
-        out = update_pos(out, 0.5)
+        out = self.reset(inp)
+        out = updt_mom(out, 1.0)
+        out = updt_pos(out, 0.5)
         out = self.kbt(out, 1.0)
-        out = update_pos(out, 0.5)
-        out = update_tim(out, 1.0)
-        out = self.adj(out)
+        out = updt_pos(out, 0.5)
         out = self.evl(out)
         return out
 
@@ -114,198 +138,155 @@ class PQTQ(nn.Module):
 class PQTQP(nn.Module):
     """High precision NVT Velocity Verlet."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 0.5)
-        out = update_pos(out, 0.5)
+        out = self.reset(inp)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 0.5)
         out = self.kbt(out, 1.0)
-        out = update_pos(out, 0.5)
-        out = update_tim(out, 1.0)
-        out = self.adj(out)
+        out = updt_pos(out, 0.5)
         out = self.evl(out)
-        out = update_mom(out, 0.5)
-        return out
-
-
-class TPQPT(nn.Module):
-    """NVT Velocity Verlet."""
-
-    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
-        super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
-        self.kbt = kbt
-
-    def forward(self, inp: Dict[str, Tensor]):
-        out = self.kbt(inp, 0.5)
-        out = update_mom(out, 0.5)
-        out = update_pos(out, 0.5)
-        out = update_tim(out, 1.0)
-        out = self.adj(out)
-        out = self.evl(out)
-        out = update_mom(out, 0.5)
-        out = self.kbt(out, 0.5)
+        out = updt_mom(out, 0.5)
         return out
 
 
 class PTPQ(nn.Module):
     """NVT Leap Frog."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module, kbt: nn.Module):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
         self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = update_mom(inp, 0.5)
+        out = self.reset(inp)
+        out = updt_mom(out, 0.5)
         out = self.kbt(out, 1.0)
-        out = update_mom(out, 0.5)
-        out = update_tim(out, 1.0)
-        out = update_pos(out, 1.0)
-        out = self.adj(out)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 1.0)
         out = self.evl(out)
         return out
 
 
-class PQS(nn.Module):
-    """Constrained NVE Leap Frog."""
+class TPQPT(nn.Module):
+    """NVT Velocity Verlet."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module,
-                 con: nn.Module, tol: float):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, kbt: nn.Module):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
-        self.shk = Shake(con, tol)
-        self.bme = BMEVariables(con)
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.reset = Reset(self.evl)
+        self.kbt = kbt
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = inp.copy()
-        out = update_mom(out, 1.0)
-        out = update_tim(out, 1.0)
-
-        bme: BMEV = self.bme(out)
-        out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac)
-
-        out = self.adj(out)
+        out = self.reset(inp)
+        out = self.kbt(out, 0.5)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 0.5)
         out = self.evl(out)
-
-        out[p.bme_lmd] = lmd.detach()
-        out[p.bme_cor] = bme.cor.detach()
-        out[p.bme_fix] = (torch.ones_like(lmd) /
-                          bme.mmt.detach().det().sqrt()[:, None])
+        out = updt_mom(out, 0.5)
+        out = self.kbt(out, 0.5)
         return out
 
 
-class PTPQS(nn.Module):
+class PTPQs(nn.Module):
     """Constrained NVT Leap Frog."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module,
-                 kbt: nn.Module, con: nn.Module, tol: float):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module,
+                 kbt: nn.Module, col_var: nn.Module, tol_shk: float,
+                 ktg_fix: bool):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
-        self.adj_tmp = AdjSftSpcStorage()
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.reset = Reset(self.evl)
         self.kbt = kbt
-        self.shk = Shake(con, tol)
-        self.bme = BMEVariables(con)
-
-    def get_adj_tmp(self, inp: Dict[str, Tensor]):
-        if self.adj_tmp.empty():
-            adj: AdjSftSpc = self.adj(pnt_ful(inp))
-            self.adj_tmp(adj)
-        return self.adj_tmp()
+        self.shk = BMEShk(col_var, tol_shk)
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = inp.copy()
-        out = update_mom(out, 0.5)
+        out = self.reset(inp)
+        out = updt_mom(out, 0.5)
         out = self.kbt(out, 1.0)
-        out = update_mom(out, 0.5)
-        out = update_tim(out, 1.0)
-
-        bme: BMEV = self.bme(out)
-        out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac)
-
-        out = self.adj(out)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 1.0)
+        out = self.shk(out)
         out = self.evl(out)
-
-        out[p.bme_lmd] = lmd.detach()
-        out[p.bme_cor] = bme.cor.detach()
-        out[p.bme_fix] = (torch.ones_like(lmd) /
-                          bme.mmt.detach().det().sqrt()[:, None])
         return out
 
 
-class TPQSPTR(nn.Module):
+class TPQsPTr(nn.Module):
     """Constrained NVT Velocity Verlet."""
 
-    def __init__(self, eng: nn.Module, adj: nn.Module,
-                 kbt: nn.Module, con: nn.Module,
-                 tol_pos: float, tol_mom: float,
-                 ):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module,
+                 kbt: nn.Module, col_var: nn.Module,
+                 tol_shk: float, tol_rtl: float, ktg_fix: bool):
         super().__init__()
-        self.evl = EvalEnergiesForces(eng)
-        self.adj = adj
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.reset = Reset(self.evl)
         self.kbt = kbt
-        self.shk = Shake(con, tol_pos)
-        self.rtl = Rattle(con, tol_mom)
-        self.bme = BMEVariables(con)
-        self.lmd_rtl = torch.tensor([0.0])
-        self.str_bme_jac = torch.tensor([])
-        self.str_bme_fix = torch.tensor([])
-        self.str_bme_mmt = torch.tensor([])
-        self.str_bme_cor = torch.tensor([])
-        self.adj_tmp = AdjSftSpcStorage()
-
-    def get_bme(self, inp: Dict[str, Tensor]):
-        if self.str_bme_jac.numel() == 0:
-            self.set_bme(inp)
-        return BMEV(jac=self.str_bme_jac, mmt=self.str_bme_mmt,
-                    fix=self.str_bme_fix, cor=self.str_bme_cor)
-
-    def set_bme(self, inp: Dict[str, Tensor]):
-        bme: BMEV = self.bme(inp)
-        self.str_bme_mmt = bme.mmt
-        self.str_bme_jac = bme.jac
-        self.str_bme_fix = bme.fix
-        self.str_bme_cor = bme.cor
-
-    def get_adj_tmp(self, inp: Dict[str, Tensor]):
-        if self.adj_tmp.empty():
-            adj: AdjSftSpc = self.adj(pnt_ful(inp))
-            self.adj_tmp(adj)
-        return self.adj_tmp()
+        self.shk = BMEShk(col_var, tol_shk)
+        self.rtl = BMERtl(col_var, tol_rtl)
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = inp.copy()
-
-        bme: BMEV = self.get_bme(out)
-
+        out = self.reset(inp)
         out = self.kbt(out, 0.5)
-        out = update_mom(out, 0.5)
-        out = update_tim(out, 1.0)
-        out = update_pos(out, 1.0)
-        out, lmd = self.shk(out, bme.jac)
-
-        out = self.adj(out)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 1.0)
+        out = self.shk(out)
         out = self.evl(out)
-
-        out = update_mom(out, 0.5)
+        out = updt_mom(out, 0.5)
         out = self.kbt(out, 0.5)
+        out = self.rtl(out)
+        return out
 
-        self.set_bme(out)
-        tmp = self.get_bme(out)
-        out, lmd_rtl = self.rtl(out, tmp.jac)
 
-        out[p.bme_lmd] = lmd.detach() + self.lmd_rtl
-        out[p.bme_cor] = bme.cor.detach()
-        out[p.bme_fix] = bme.fix.detach()
-        self.lmd_rtl = lmd_rtl.detach()
+class PQTQs(nn.Module):
+    """Constrained high precision NVT Leap Frog."""
+
+    def __init__(self, eng: EvalEnergies, adj: nn.Module,
+                 kbt: nn.Module, col_var: nn.Module,
+                 tol_shk: float, ktg_fix: bool):
+        super().__init__()
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.reset = Reset(self.evl)
+        self.kbt = kbt
+        self.shk = BMEShk(col_var, tol_shk)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = self.reset(inp)
+        out = updt_mom(out, 1.0)
+        out = updt_pos(out, 0.5)
+        out = self.kbt(out, 1.0)
+        out = updt_pos(out, 0.5)
+        out = self.shk(out)
+        out = self.evl(out)
+        return out
+
+
+class PQTQsPr(nn.Module):
+    """Constrained high precision NVT Velocity Verlet."""
+
+    def __init__(self, eng: EvalEnergies, adj: nn.Module,
+                 kbt: nn.Module, col_var: nn.Module,
+                 tol_shk: float, tol_rtl: float, ktg_fix: bool):
+        super().__init__()
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.reset = Reset(self.evl)
+        self.kbt = kbt
+        self.shk = BMEShk(col_var, tol_shk)
+        self.rtl = BMERtl(col_var, tol_rtl)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = self.reset(inp)
+        out = updt_mom(out, 0.5)
+        out = updt_pos(out, 0.5)
+        out = self.kbt(out, 1.0)
+        out = updt_pos(out, 0.5)
+        out = self.shk(out)
+        out = self.evl(out)
+        out = updt_mom(out, 0.5)
+        out = self.rtl(out)
         return out

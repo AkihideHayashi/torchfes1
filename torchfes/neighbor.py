@@ -62,7 +62,7 @@ def set_lil_adj_sft_spc_vec_sod(
 
 
 class SetAdjSftSpcVecSod(nn.Module):
-    def __init__(self, adj, cut: List[Tuple[str, float, bool]]):
+    def __init__(self, adj, cut: List[Tuple[str, float]]):
         super().__init__()
         self.adj = adj
         self.cut = cut
@@ -71,9 +71,9 @@ class SetAdjSftSpcVecSod(nn.Module):
         adj = self.adj(pnt_ful(inp))
         vec = pn.coo2_vec_sod(adj, inp[p.pos], inp[p.cel])
         out = inp.copy()
-        for _, rc, set_vs in self.cut:
-            out = set_coo_adj_sft_spc_vec_sod(out, adj, vec, rc, set_vs)
-        for typ, rc, set_vs in self.cut:
+        for _, rc in self.cut:
+            out = set_coo_adj_sft_spc_vec_sod(out, adj, vec, rc, False)
+        for typ, rc in self.cut:
             if typ == p.lil:
-                out = set_lil_adj_sft_spc_vec_sod(out, rc, set_vs)
+                out = set_lil_adj_sft_spc_vec_sod(out, rc, False)
         return out

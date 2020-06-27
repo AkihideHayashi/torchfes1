@@ -58,6 +58,13 @@ def _grad_inner(out: Tensor, inp: Tensor, grd_out: Optional[Tensor],
         return grd
 
 
+def requires_grad(inp: Dict[str, Tensor], props: List[str]):
+    out = inp.copy()
+    for prop in props:
+        out[prop] = inp[prop].clone().detach().requires_grad_(True)
+    return out
+
+
 def pnt_ful(inp: Dict[str, Tensor]):
     return pn.pnt_ful(
         cel_mat=inp[p.cel], pbc=inp[p.pbc], pos_xyz=inp[p.pos], ent=inp[p.ent])

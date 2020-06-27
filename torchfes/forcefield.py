@@ -33,31 +33,32 @@ class EvalEnergies(nn.Module):
 
 
 class EvalEnergiesForces(nn.Module):
-    def __init__(self, eng: nn.Module):
+    def __init__(self, eng: EvalEnergies):
         super().__init__()
+        assert isinstance(eng, EvalEnergies)
         self.eng = eng
 
     def forward(self, inp: Dict[str, Tensor],
-                frc_pos: bool = True, frc_cel: bool = False,
+                frc: bool = True, sts: bool = False,
                 frc_grd: bool = False, retain_graph: Optional[bool] = None):
         pos = inp[p.pos]
         cel = inp[p.cel]
-        if frc_pos and not pos.requires_grad:
+        if frc and not pos.requires_grad:
             pos.requires_grad_()
-        if frc_cel and not cel.requires_grad:
+        if sts and not cel.requires_grad:
             cel.requires_grad_()
         out: Dict[str, Tensor] = self.eng(inp)
         eng_mol = out[p.eng_mol]
         eng_res = out[p.eng_res].sum(1)
         assert eng_mol.dim() == 1
         assert eng_res.dim() == 1
-        if frc_pos:
+        if frc:
             out[p.frc_mol] = grad(-eng_mol, pos, create_graph=frc_grd,
                                   retain_graph=retain_graph)
             out[p.frc_res] = grad(-eng_res, pos, create_graph=frc_grd,
                                   retain_graph=retain_graph)
             out[p.frc] = out[p.frc_mol] + out[p.frc_res]
-        if frc_cel:
+        if sts:
             out[p.sts_mol] = grad(-eng_mol, cel, create_graph=frc_grd,
                                   retain_graph=retain_graph)
             out[p.sts_res] = grad(-eng_res, pos, create_graph=frc_grd,

@@ -28,12 +28,12 @@ class FIRE(nn.Module):
         \alpha -> \alpha_start
 
     Args:
-        a0: \alpha_start
-        n_min: N_min
-        f_a: f_\alpha
-        f_inc: f_inc
-        f_dec: f_dec
-        dtm_max: \Delta t_max
+        a0: \alpha_start. 0 < a0 < 1
+        n_min: N_min. 0 < n_min
+        f_a: f_\alpha. 0 < f_a < 1
+        f_inc: f_inc. 1 < f_inc
+        f_dec: f_dec. 0 < f_dec < 1
+        dtm_max: \Delta t_max. 0 < dtm_max
     """
     def __init__(self, a0: float, n_min: int, f_a: float,
                  f_inc: float, f_dec: float, dtm_max: float):
@@ -47,35 +47,31 @@ class FIRE(nn.Module):
         self.f_dec = f_dec
         self.f_a = f_a
         self.dtm_max = dtm_max
-        self.a = torch.tensor([])
-        self.count = torch.tensor([])
-
-    def reset(self, inp: Dict[str, Tensor]):
-        self.a = torch.ones_like(inp[p.eng]) * self.a0
-        self.count = torch.zeros_like(self.a)
 
     def forward(self, inp: Dict[str, Tensor]):
-        if self.a.size() != inp[p.eng].size():
-            self.reset(inp)
-        dtm = inp[p.dtm]
-        vel = inp[p.mom] / inp[p.mas][:, :, None]
-        frc = inp[p.frc]
+        out = inp.copy()
+        if p.fir_alp not in out:
+            out[p.fir_alp] = torch.ones_like(out[p.eng]) * self.a0
+        if p.fir_cnt not in out:
+            out[p.fir_cnt] = torch.zeros_like(out[p.fir_alp])
+        dtm = out[p.dtm]
+        vel = out[p.mom] / out[p.mas][:, :, None]
+        frc = out[p.frc]
         P = (vel * frc).sum(-1).sum(-1)
         ratio = (_fnorm(vel) / _fnorm(frc))[:, None, None]
-        a = self.a[:, None, None]
+        a = out[p.fir_alp][:, None, None]
         vel_new = (1 - a) * vel + a * frc * ratio
-        positive = (P > 0) & (self.count > self.n_min)
-        self.count += 1
+        positive = (P > 0) & (out[p.fir_cnt] > self.n_min)
+        out[p.fir_cnt] += 1
         negative = P <= 0
         dtm[positive] *= self.f_inc
         dtm.clamp_max_(self.dtm_max)
-        self.a[positive] *= self.f_a
-        self.count[negative] = torch.zeros_like(self.count[negative])
+        out[p.fir_alp][positive] *= self.f_a
+        out[p.fir_cnt][negative] = torch.zeros_like(out[p.fir_cnt][negative])
         dtm[negative] *= self.f_dec
         vel_new[negative] *= torch.zeros_like(vel_new[negative])
-        self.a[negative] = torch.ones_like(
-            negative, dtype=self.a.dtype) * self.a0
-        out = inp.copy()
+        out[p.fir_alp][negative] = torch.ones_like(
+            negative, dtype=out[p.fir_alp].dtype) * self.a0
         out[p.mom] = vel_new * out[p.mas][:, :, None]
         out[p.dtm] = dtm
         return out

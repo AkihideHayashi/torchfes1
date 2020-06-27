@@ -1,166 +1,176 @@
-"""The definition of lambda is same as vasp wiki.
-The definition of G is same as vasp wiki.
-lambda + GkT is good for fes.
-"""
-from itertools import count
-from typing import Dict, List, NamedTuple
-
+from typing import Dict
 import torch
-from torch import Tensor, nn
-
+from torch import nn, Tensor
 from .. import properties as p
+from ..utils import grad, requires_grad
 
 
-def bme_var(lmd: Tensor, kbt: Tensor, cor: Tensor):
-    return (lmd + kbt[:, :, None] * cor)
-
-
-def bme_postprocess(lmd: Tensor, kbt: Tensor, cor: Tensor, fix: Tensor):
-    # n_trj, n_bch, n_col = lmd.size()
-    term = (lmd + kbt[:, :, None] * cor)
-    return (term * fix).mean(0) / fix.mean(0)
-
-
-class BMEV(NamedTuple):
-    r"""
-    \frac{\pd A}{\pd \sigma} = \frac{z^(1/2)(\lambda + GTk)}{z^(1/2)}
-    jac: \frac{\pd \sigma}{\pd r}
-    mmt: mass-metric tensor z
-    cor: correction G
-    fix: fixman correction z^(-1/2)
-    """
-    jac: Tensor  # pd sigma / pd r
-    mmt: Tensor  # mass-metric tensor "z".
-    cor: Tensor  # G
-    fix: Tensor  # fixman correction z^(-0.5)
-
-
-def fixman(mmt: Tensor):
-    return mmt.detach().det().pow(-0.5)[:, None]
-
-
-def jacobian(fun, pos):
+def jacobian(fun: Tensor, pos: Tensor, create_graph: bool):
     n = fun.size(1)
     jac = []
     for i in range(n):
         g = torch.zeros_like(fun)
         g[:, i] = 1.0
-        grad, = torch.autograd.grad(fun, pos, g,
-                                    retain_graph=True, create_graph=True)
-        jac.append(grad)
+        grd = grad(fun, pos, g, create_graph=create_graph)
+        jac.append(grd)
     return torch.stack(jac, 1)
 
 
-def requires_grad(inp: Dict[str, Tensor], props: List[str]):
-    out = inp.copy()
-    for prop in props:
-        out[prop] = inp[prop].clone().detach().requires_grad_(True)
-    return out
-
-
-def bme_z(mas: Tensor, jac: Tensor):
+def bme_mmt(mas: Tensor, jac: Tensor):
+    """Calculare mass metrics tensor Z."""
     z = (jac[:, :, None, :, :] *
          jac[:, None, :, :, :] /
          mas[:, None, None, :, None]).sum(-1).sum(-1)
     return z
 
 
-def bme_g(pos: Tensor, mas: Tensor, jac: Tensor, z: Tensor):
-    zd = z.det()
-    rz, = torch.autograd.grad(zd, pos, torch.ones_like(zd))
-    term = (jac[:, :, :, :] *
-            rz[:, None, :, :] /
+def bme_ktg(pos: Tensor, mas: Tensor, kbt: Tensor,
+            jac_con_pos: Tensor, mmt: Tensor, mmt_det: Tensor):
+    jac_mmt_det = grad(mmt_det, pos)
+    term = (jac_con_pos[:, :, :, :] *
+            jac_mmt_det[:, None, :, :] /
             mas[:, None, :, None]).sum(-1).sum(-1)
-    term = torch.solve(term[:, :, None], z)[0].squeeze(-1)
-    term = term / (2 * zd[:, None])
-    return term
+    term = torch.solve(term[:, :, None], mmt)[0].squeeze(-1)
+    g = term / (2 * mmt_det[:, None])
+    return kbt[:, None] * g
 
 
-class BMEVariables(nn.Module):
-    def __init__(self, con: nn.Module):
+def fixman(mmt_det: Tensor):
+    return mmt_det.pow(-0.5)[:, None]
+
+
+def bme_kinetic_correction(lmd: Tensor, ktg: Tensor):
+    return lmd + ktg
+
+
+def bme_postprocess(lmd: Tensor, ktg: Tensor, fix: Tensor):
+    # n_trj, n_bch, n_col = lmd.size()
+    term = lmd + ktg
+    return (term * fix).mean(0) / fix.mean(0)
+
+
+class BMEJac(nn.Module):
+    def __init__(self, col_var: nn.Module, create_graph: bool):
         super().__init__()
-        self.con = con
+        self.col_var = col_var
+        self.create_graph = create_graph
 
     def forward(self, inp: Dict[str, Tensor]):
         out = requires_grad(inp, [p.pos])
-        con = self.con(out)
-        jac = jacobian(con, out[p.pos])
-        mmt = bme_z(out[p.mas], jac)
-        cor = bme_g(out[p.pos], out[p.mas], jac, mmt) * inp[p.kbt][:, None]
-        fix = fixman(mmt)
-        return BMEV(jac.detach(), mmt.detach(),
-                    cor.detach(), fix.detach())
+        con = self.col_var(out) - inp[p.bme_cen]
+        if p.bme_lmd_tmp not in out:
+            out[p.bme_lmd_tmp] = torch.zeros_like(con)
+        jac = jacobian(con, out[p.pos], self.create_graph)
+        out[p.bme_jac_con_pos] = jac
+        return out
 
 
-def rattle_objective(mom: Tensor, mas: Tensor, dtm: Tensor,
-                     jac_prv: Tensor, lmd: Tensor):
-    tmp = mom - (jac_prv * lmd[:, :, None, None]).sum(1) * dtm
-    ret = (jac_prv / mas[:, None, :, :] * tmp[:, None, :, :]).sum(-1).sum(-1)
-    return ret
-
-
-class Rattle(nn.Module):
-    def __init__(self, con: nn.Module, tol: float, debug=None):
+class BMEKTGFix(nn.Module):
+    def __init__(self, col_var: nn.Module):
         super().__init__()
-        self.con = con
-        self.tol = tol
-        self.debug = debug
+        self.col_var = col_var
 
-    def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor):
-        mom = inp[p.mom].clone()
+    def forward(self, inp: Dict[str, Tensor]):
         out = inp.copy()
-        mas = out[p.mas][:, :, None]
-        dtm = out[p.dtm][:, None, None]
-        lmd = jac_prv.new_zeros(jac_prv.size()[:2])
-        i = 0
-        for i in count():
-            lmd.requires_grad_(True)
-            frc = -(lmd[:, :, None, None] * jac_prv).sum(1)
-            out[p.mom] = mom + frc * dtm
-            con = rattle_objective(mom, mas, dtm, jac_prv, lmd)
-            if con.abs().max() < self.tol:
-                break
-            jac = jacobian(con, lmd)
-            dlt, _ = torch.solve(con[:, :, None], jac)
-            lmd = (lmd.detach() - dlt.squeeze(2).detach())
-            if self.debug is not None:
-                print(f'Rattle step {i}', file=self.debug)
-        out[p.mom].detach_()
-        if self.debug is not None:
-            print(f'Rattle converged after {i} steps.', file=self.debug)
-        return out, lmd
+        mmt = bme_mmt(out[p.mas], out[p.bme_jac_con_pos])
+        mmt_det = mmt.det()
+        fix = fixman(mmt_det)
+        ktg = bme_ktg(out[p.pos], out[p.mas], out[p.kbt],
+                      out[p.bme_jac_con_pos], mmt, mmt_det)
+        out = inp.copy()
+        out[p.bme_ktg_tmp] = ktg.detach()
+        out[p.bme_fix_tmp] = fix.detach()
+        return out
 
 
-class Shake(nn.Module):
-    def __init__(self, con: nn.Module, tol: float, debug=None):
+class BMEShk(nn.Module):
+    def __init__(self, col_var: nn.Module, tol: float, debug=None):
         super().__init__()
-        self.con = con
+        self.col_var = col_var
         self.tol = tol
         self.debug = debug
 
-    def forward(self, inp: Dict[str, Tensor], jac_prv: Tensor):
+    def forward(self, inp: Dict[str, Tensor]):
+        jac_con = inp[p.bme_jac_con_pos]
         pos = inp[p.pos].clone()
         mom = inp[p.mom].clone()
         out = inp.copy()
         mas = out[p.mas][:, :, None]
         dtm = out[p.dtm][:, None, None]
-        lmd = jac_prv.new_zeros(jac_prv.size()[:2])
+        lmd = jac_con.new_zeros(jac_con.size()[:2])
         i = 0
-        for i in count():
+        while True:
             lmd.requires_grad_(True)
-            frc = -(lmd[:, :, None, None] * jac_prv).sum(1)
+            frc = -(lmd[:, :, None, None] * jac_con).sum(1)
             out[p.pos] = pos + frc / mas * dtm * dtm
             out[p.mom] = mom + frc * dtm
-            con = self.con(out)
+            con = self.col_var(out) - out[p.bme_cen]
             if con.abs().max() < self.tol:
                 break
-            jac = jacobian(con, lmd)
-            dlt, _ = torch.solve(con[:, :, None], jac)
+            jac_con_lmd = jacobian(con, lmd, False)
+            dlt, _ = torch.solve(con[:, :, None], jac_con_lmd)
             lmd = (lmd.detach() - dlt.squeeze(2).detach())
             if self.debug is not None:
                 print(f'Shake step {i}', file=self.debug)
+            i += 1
         out[p.pos].detach_()
         out[p.mom].detach_()
         if self.debug is not None:
             print(f'Shake converged after {i} steps.')
-        return out, lmd
+        out[p.bme_lmd_tmp] += lmd
+        return out
+
+
+def rattle_objective(mom: Tensor, mas: Tensor, dtm: Tensor, jac: Tensor,
+                     lmd: Tensor):
+    tmp = mom - (jac * lmd[:, :, None, None]).sum(1) * dtm
+    ret = (jac / mas[:, None, :, :] * tmp[:, None, :, :]).sum(-1).sum(-1)
+    return ret
+
+
+class BMERtl(nn.Module):
+    def __init__(self, con: nn.Module, tol: float, debug=None):
+        super().__init__()
+        self.con = con
+        self.tol = tol
+        self.debug = debug
+
+    def forward(self, inp: Dict[str, Tensor]):
+        mom = inp[p.mom].clone()
+        out = inp.copy()
+        mas = out[p.mas][:, :, None]
+        dtm = out[p.dtm][:, None, None]
+        jac_con_pos = inp[p.bme_jac_con_pos]
+        lmd = jac_con_pos.new_zeros(jac_con_pos.size()[:2])
+        i = 0
+        while True:
+            lmd.requires_grad_(True)
+            frc = -(lmd[:, :, None, None] * jac_con_pos).sum(1)
+            out[p.mom] = mom + frc * dtm
+            dot = rattle_objective(mom, mas, dtm, jac_con_pos, lmd)
+            if dot.abs().max() < self.tol:
+                break
+            jac_dot_lmd = jacobian(dot, lmd, False)
+            dlt, _ = torch.solve(dot[:, :, None], jac_dot_lmd)
+            lmd = (lmd.detach() - dlt.squeeze(2).detach())
+            if self.debug is not None:
+                print(f'Rattle step {i}', file=self.debug)
+            i += 1
+        out[p.mom].detach_()
+        if self.debug is not None:
+            print(f'Rattle converged after {i} steps.', file=self.debug)
+        out[p.bme_lmd_tmp] += lmd
+        return out
+
+
+def bme_det_lmd(inp: Dict[str, Tensor]):
+    """Determine blue moon lambda."""
+    out = inp.copy()
+    if p.bme_lmd_tmp in out:
+        out[p.bme_lmd] = out[p.bme_lmd_tmp]
+        out[p.bme_lmd_tmp] = torch.zeros_like(out[p.bme_lmd_tmp])
+    if p.bme_fix_tmp in out:
+        out[p.bme_fix] = out[p.bme_fix_tmp]
+    if p.bme_ktg_tmp in out:
+        out[p.bme_ktg] = out[p.bme_ktg_tmp]
+    return out
