@@ -50,15 +50,16 @@ class BMEAdjEvl(nn.Module):
 class Reset(nn.Module):
     """Reset variables for 1st step."""
 
-    def __init__(self, adj_evl):
+    def __init__(self, evl):
         super().__init__()
-        self.adj_evl = adj_evl
+        self.evl = evl
 
     def forward(self, inp: Dict[str, Tensor]):
         if p.sld_rst not in inp:
             inp[p.sld_rst] = inp[p.dtm] == inp[p.dtm]
         if inp[p.sld_rst].any():
-            out = self.adj_evl(inp)
+            out = updt_tim(inp, -1.0)
+            out = self.evl(out)
             out[p.sld_rst] = torch.zeros_like(out[p.sld_rst])
             return out
         else:

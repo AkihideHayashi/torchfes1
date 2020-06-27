@@ -47,16 +47,16 @@ def parse_vel(xyz):
         if line.strip()
     ]])
 
-# print(parse_vel("""
-#  Ar         0.0021033285       -0.0005843461        0.0006596157
-#  Ar        -0.0000369425        0.0005716938        0.0002171618
-#  Ar        -0.0020663860        0.0000126523       -0.0008767775
-#  """) * Ang / fs)
 
-# import sys; sys.exit()
+def parse_main():
+    print(parse_vel("""
+     Ar         0.0021033285       -0.0005843461        0.0006596157
+     Ar        -0.0000369425        0.0005716938        0.0002171618
+     Ar        -0.0020663860        0.0000126523       -0.0008767775
+     """) * Ang / fs)
 
 
-def make_inp():
+def make_inp(timestep, print_vel=False):
     order = ['Ar']
     sym = [['Ar', 'Ar', 'Ar']]
     cel = torch.eye(3)[None, :] * 200.0 * Ang
@@ -69,25 +69,18 @@ def make_inp():
     elm = torch.tensor(sym_to_elm(sym, order))
     mas = torch.tensor([40.0])[elm]
     inp = init_inp(cel, pbc, elm, pos, mas)
-    # add_md(inp, 1.0 * fs, 85.0 * kB)
-    add_nvt(inp, 1.0 * fs, 85.0 * kB)
+    add_nvt(inp, timestep * fs, 85.0 * kB)
     add_global_nose_hoover_chain(inp, (1000.0 * fs))
 
     vel = torch.tensor([[[0.0214, -0.0059, 0.0067],
                          [-0.0004, 0.0058, 0.0022],
                          [-0.0210, 0.0001, -0.0089]]])
-    # for v in vel[0] / Bohr * AUT:
-    #     print('{} {} {}'.format(*v))
+    if print_vel:
+        for v in vel[0] / Bohr * AUT:
+            print('{} {} {}'.format(*v))
     mom = vel * mas[:, :, None]
     inp[p.mom] = mom
     return inp
-
-
-def calc(eng, adj, inp):
-    out = adj(inp)
-    return eng(out)
-    # return EvalEnergiesForces(eng)(
-    #     inp, adj(pn.pnt_ful(inp[p.cel], inp[p.pbc], inp[p.pos], inp[p.ent])))
 
 
 def main():
@@ -95,9 +88,10 @@ def main():
     parser.add_argument('--dyn', type=str)
     parser.add_argument('--kbt', type=str, default='',)
     parser.add_argument('--colvar', type=str, default='')
+    parser.add_argument('--timestep', type=float, default=1.0)
     args = parser.parse_args()
     torch.set_default_dtype(torch.float64)
-    inp = make_inp()
+    inp = make_inp(args.timestep)
     eng = EvalEnergies(
         LennardJones(e=torch.tensor([0.1]), s=torch.tensor([3.405]), rc=100.0)
     )
@@ -153,17 +147,19 @@ def main():
 
     xyz = XYZRecorder('xyz', 'w', ['Ar'], 1)
     timer = ignite.handlers.Timer()
-    for _ in range(10):
+    while True:
         inp = dyn(inp)
         tim = inp[p.tim].item() / fs
         tim = round(decimal.Decimal(tim), 1)
-        eng = round(decimal.Decimal(inp[p.eng].item() / Ha), 7)
+        eng = round(decimal.Decimal(inp[p.eng].item() / Ha), 10)
         if bme:
             lmd = round(decimal.Decimal(inp[p.bme_lmd].item() / Ha), 7)
             print(f'{tim:>5} {eng:> 7} {lmd:> 7}')
         else:
             print(f'{tim:>5} {eng:> 7}')
         xyz.append(inp)
+        if tim >= 10.0:
+            break
     print(timer.value())
 
 
