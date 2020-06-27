@@ -130,3 +130,5 @@ dmypy.json
 
 *.ipynb
 *.hdf5
+*.pt
+*.xyz
