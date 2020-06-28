@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Dict
 import numpy as np
 import torch
@@ -12,7 +13,7 @@ import pointneighbor as pn
 from torchfes.data.collate import ToDictTensor
 from torchfes import forcefield as ff, md, inp, properties as p, api
 import torchfes as fes
-from torchfes.recorder.torch import TorchRecorder
+from torchfes.recorder import TorchRecorder
 
 
 def read_mol():
@@ -34,6 +35,7 @@ def main():
     inp.add_nvt(mol, 0.5 * fs, 300 * kB)
     inp.add_global_langevin(mol, 100.0 * fs)
     model_torchani = torchani.models.ANI1ccx()
+    print(model_torchani.species)
     mdl = api.Unit(from_torchani(model_torchani, p.coo), Ha)
     eng = ff.EvalEnergies(mdl)
     rc_r = mdl.mdl.aev.rad.rc
@@ -43,8 +45,8 @@ def main():
         pn.Coo2BookKeeping(
             pn.Coo2FulSimple(rc_r + delta), pn.StrictCriteria(delta), rc_r),
         [
-            (p.coo, rc_r, True),
-            (p.coo, rc_a, True),
+            (p.coo, rc_r),
+            (p.coo, rc_a),
         ]
     )
 
@@ -59,8 +61,10 @@ def main():
         for i in range(2000000):
             mol = dyn(mol)
             rec.append(mol)
-            print(i, mol[p.eng].item(), timer.value(),
-                  flush=i % flush_interval == flush_interval-1)
+            eng = round(Decimal(mol[p.eng].item()), 7)
+            flush = i % flush_interval == flush_interval - 1
+            real_time = round(Decimal(timer.value()), 4)
+            print(f'{i} {eng:>10} {real_time:>5}', flush=flush)
             timer.reset()
 
 

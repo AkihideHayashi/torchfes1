@@ -1,7 +1,9 @@
 # flake8: noqa
 from . import colvar, fes
 from . import functional as fn
-from . import neighbor as adj
+from . import adj
 from . import properties as p
-from . import inp, md, properties, recorder, restraints
-from .forcefield import EvalEnergies
+from . import recorder as rec
+from . import restraints as res
+from . import inp, md
+from . import forcefield as ff

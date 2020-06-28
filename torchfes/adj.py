@@ -16,6 +16,17 @@ def get_adj_sft_spc(inp: Dict[str, Tensor], typ: str, rc: float):
     return AdjSftSpc(adj=adj, sft=sft, spc=spc)
 
 
+def vec_sod(inp: Dict[str, Tensor], adj: AdjSftSpc):
+    pos = inp[p.pos]
+    cel = inp[p.cel]
+    if pn.is_coo2(adj):
+        return pn.coo2_vec_sod(adj, pos, cel)
+    elif pn.is_lil2(adj):
+        return pn.lil2_vec_sod(adj, pos, cel)
+    else:
+        raise RuntimeError('adj is not lil2 nor coo2.')
+
+
 def get_vec_sod(inp: Dict[str, Tensor], typ: str, rc: float):
     vec = inp[p.vec(typ, rc)]
     sod = inp[p.sod(typ, rc)]
@@ -23,9 +34,9 @@ def get_vec_sod(inp: Dict[str, Tensor], typ: str, rc: float):
 
 
 def set_coo_adj_sft_spc_vec_sod(
-        inp: Dict[str, Tensor], adj_sft_spc: AdjSftSpc, vec_sod: VecSod,
+        inp: Dict[str, Tensor], adj_sft_spc: AdjSftSpc, vecsod: VecSod,
         rc: float, set_vec_sod: bool):
-    adj_out, vec_out = pn.cutoff_coo2(adj_sft_spc, vec_sod, rc)
+    adj_out, vec_out = pn.cutoff_coo2(adj_sft_spc, vecsod, rc)
     out = inp.copy()
     out[p.nei_adj(p.coo, rc)] = adj_out.adj
     out[p.nei_sft(p.coo, rc)] = adj_out.sft

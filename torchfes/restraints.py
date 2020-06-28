@@ -58,8 +58,8 @@ class ClosePenalty(nn.Module):
         self.rc = self.radius.max().item() * 2
 
     def forward(self, inp: Dict[str, Tensor]):
-        adj = fes.nb.get_adj_sft_spc(inp, p.coo, self.rc)
-        vec_sod = fes.nb.get_vec_sod(inp, p.coo, self.rc)
+        adj = fes.adj.get_adj_sft_spc(inp, p.coo, self.rc)
+        vec_sod = fes.adj.get_vec_sod(inp, p.coo, self.rc)
         n, i, j, _ = adj.adj.unbind(0)
         ei = inp[p.elm][n, i]
         ej = inp[p.elm][n, j]
