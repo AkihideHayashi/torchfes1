@@ -21,13 +21,13 @@ def main():
     hil = {}
     with fes.rec.open_torch('hil_wtmtd.pt', 'rb', 'hdx_wtmtd.pkl') as f:
         for data in f:
-            hil = fes.fes.mtd_new.add_gaussian(hil, data)
+            hil = fes.fes.mtd.add_gaussian(hil, data)
     min_ = -0.5
     max_ = 0.5
     bins = 40
 
     x = fes.analyze.histc_axis(bins, min_, max_)
-    y = -fes.fes.mtd_new.gaussian_potential(x[:, None], ColVar().pbc, hil)
+    y = -fes.fes.mtd.gaussian_potential(x[:, None], ColVar().pbc, hil)
 
     plt.plot(x, y - y.min())
     plt.plot(x, x * x)

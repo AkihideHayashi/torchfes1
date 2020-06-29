@@ -50,13 +50,13 @@ def main():
         mol = make_inp()
         mode = 'wb'
     col = ColVar()
-    res = fes.fes.mtd_new.GaussianPotential(col)
+    res = fes.fes.mtd.GaussianPotential(col)
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
     eng = fes.ff.EvalEnergies(mdl, res)
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    mtd = fes.fes.mtd_new.MetaDynamics(col, [0.1], 0.01)
+    mtd = fes.fes.mtd.MetaDynamics(col, [0.1], 0.01)
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
     timer = ignite.handlers.Timer()
@@ -70,8 +70,9 @@ def main():
             rec.write(mol)
             stp = mol[fes.p.stp].item()
             tim = round(Decimal(timer.value()), 3)
+            eng = round(Decimal(mol[fes.p.eng_res].item()), 5)
             timer.reset()
-            print(f'{stp} {tim}')
+            print(f'{stp} {eng} {tim}')
 
 
 if __name__ == "__main__":

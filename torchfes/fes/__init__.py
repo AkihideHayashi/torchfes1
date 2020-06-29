@@ -1,3 +1,3 @@
 # flake8: noqa
-from .mtd import MetaDynamics, MTDHills, MTDHillsData, WellTemparedMetaDynamics
-from . import mtd_new
+from . import mtd
+from . import bme

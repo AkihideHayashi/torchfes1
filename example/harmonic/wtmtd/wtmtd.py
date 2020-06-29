@@ -5,7 +5,6 @@ from pathlib import Path
 import torch
 from torch import nn, Tensor
 from ase.units import fs, kB
-import ignite
 import torchfes as fes
 import pnpot
 import pointneighbor as pn
@@ -42,42 +41,39 @@ def main():
     idx_path = Path('idx_wtmtd.pkl')
     hil_path = Path('hil_wtmtd.pt')
     hdx_path = Path('hdx_wtmtd.pkl')
-    trn = fes.fes.mtd_new.meta_dynamics_to_well_tempared_metadynamics
+    trn = fes.fes.mtd.meta_dynamics_to_well_tempared_metadynamics
     gam = torch.tensor(2.0)
     if trj_path.is_file():
         with fes.rec.open_torch(trj_path, 'rb', idx_path) as f:
             mol = f[-1]
         with fes.rec.open_torch(hil_path, 'rb') as f:
             for data in f:
-                fes.fes.mtd_new.add_gaussian(mol, trn(data, gam))
+                fes.fes.mtd.add_gaussian(mol, trn(data, gam))
         mode = 'ab'
     else:
         mol = make_inp()
         mode = 'wb'
     col = ColVar()
-    res = fes.fes.mtd_new.GaussianPotential(col)
+    res = fes.fes.mtd.GaussianPotential(col)
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
     eng = fes.ff.EvalEnergies(mdl, res)
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    mtd = fes.fes.mtd_new.WellTemparedMetaDynamics(col, [0.1], 0.01, gam, True)
+    mtd = fes.fes.mtd.WellTemparedMetaDynamics(col, [0.1], 0.01, gam, True)
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
-    timer = ignite.handlers.Timer()
     with fes.rec.open_torch(trj_path, mode, idx_path) as rec,\
             fes.rec.open_torch(hil_path, mode, hdx_path) as hil:
-        for i in range(10000):
+        for i in range(100000):
             if i % 100 == 0:
                 mol, new = mtd(mol)
                 hil.write(new)
+                stp = mol[fes.p.stp].item()
+                hgt = round(Decimal(new[fes.p.mtd_hgt].item()), 4)
+                print(f'{stp} {hgt}')
             mol = dyn(mol)
             rec.write(mol)
-            stp = mol[fes.p.stp].item()
-            tim = round(Decimal(timer.value()), 3)
-            timer.reset()
-            n = mol[fes.p.mtd_hgt].size(0)
-            print(f'{stp} {tim} {n}')
 
 
 if __name__ == "__main__":
