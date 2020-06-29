@@ -20,7 +20,7 @@ class MultipleRestraints(nn.Module):
         return torch.cat(eng, dim=1)
 
 
-class QuadraticRestraints(nn.Module):
+class HarmonicRestraints(nn.Module):
     def __init__(self, col, sgn, k):
         """
         Args:
@@ -38,7 +38,7 @@ class QuadraticRestraints(nn.Module):
         self.k = k
 
     def forward(self, inp: Dict[str, Tensor]):
-        col: Tensor = self.col(inp)
+        col: Tensor = self.col(inp) - inp[p.res_cen]
         # col.size() == (n_bch, n_col)
         assert col.dim() == 2
         assert col.size(0) == inp[p.pos].size(0)

@@ -11,7 +11,7 @@ from torchfes.utils import sym_to_elm
 from torchfes.inp import init_inp, add_nvt, add_global_langevin
 from torchfes import md, api, data
 from torchfes import properties as p
-from torchfes.restraints import QuadraticRestraints
+from torchfes.restraints import HarmonicRestraints
 from torchfes.colvar import ColVarSft
 from torchfes.recorder import hdf5_recorder
 
@@ -86,7 +86,7 @@ def main():
         colvar, torch.linspace(0.2, pi - 0.2, inp[p.elm].size(0))[:, None])
     eng = EvalEnergies(
         pot,
-        QuadraticRestraints(
+        HarmonicRestraints(
             collective, torch.tensor([0]), torch.tensor([100.0]))
     )
     adj = pn.Coo2FulSimple(100.0)

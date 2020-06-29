@@ -67,6 +67,8 @@ def gaussian_potential_pbc_restrict(
 
 
 def gaussian_potential(col: Tensor, pbc: Tensor, hil: Dict[str, Tensor]):
+    if p.mtd_hgt not in hil:
+        return torch.zeros([col.size(0)], device=col.device, dtype=col.dtype)
     neg_log_eps = get_log_max(col)
     if hil[p.mtd_prc].dim() == 2:
         if (pbc >= math.exp(neg_log_eps)).all():
@@ -115,7 +117,7 @@ def well_tempared_meta_dynamics_to_meta_dynamics(
         hil: Dict[str, Tensor], gam: Tensor):
     assert gam.size() == ()
     out = hil.copy()
-    out[p.mtd_hgt] = hil[p.mtd_hgt] * (gam / (1 - gam))
+    out[p.mtd_hgt] = hil[p.mtd_hgt] * (gam / (gam - 1))
     return out
 
 
@@ -123,7 +125,7 @@ def meta_dynamics_to_well_tempared_metadynamics(
         hil: Dict[str, Tensor], gam: Tensor):
     assert gam.size() == ()
     out = hil.copy()
-    out[p.mtd_hgt] = hil[p.mtd_hgt] * ((1 - gam) / gam)
+    out[p.mtd_hgt] = hil[p.mtd_hgt] * ((gam - 1) / gam)
     return out
 
 

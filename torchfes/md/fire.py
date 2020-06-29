@@ -70,8 +70,8 @@ class FIRE(nn.Module):
         out[p.fir_cnt][negative] = torch.zeros_like(out[p.fir_cnt][negative])
         dtm[negative] *= self.f_dec
         vel_new[negative] *= torch.zeros_like(vel_new[negative])
-        out[p.fir_alp][negative] = torch.ones_like(
-            negative, dtype=out[p.fir_alp].dtype) * self.a0
+        out[p.fir_alp][negative] = torch.ones_like(out[p.fir_alp]
+                                                   )[negative] * self.a0
         out[p.mom] = vel_new * out[p.mas][:, :, None]
         out[p.dtm] = dtm
         return out
