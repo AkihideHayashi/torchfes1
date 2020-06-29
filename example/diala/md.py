@@ -13,7 +13,7 @@ import pointneighbor as pn
 from torchfes.data.collate import ToDictTensor
 from torchfes import forcefield as ff, md, inp, properties as p, api
 import torchfes as fes
-from torchfes.recorder import TorchRecorder
+from torchfes.recorder import open_torch_mp
 
 
 def read_mol():
@@ -51,16 +51,12 @@ def main():
     )
 
     dyn = jit.script(md.TPQPT(eng, adj, md.GlobalLangevin()).to(device))
-    # dyn = jit.script(md.PQPF(eng, adj, 0.9, 5, 0.9, 1.1, 0.9, 1.0 * fs).to(
-    #     device, torch.float32))
-    # num_dihed = torch.tensor([[11, 9, 15, 17], [11, 9, 7, 5]]) - 1
-    # colvar = Dihedral(num_dihed)
     timer = Timer()
     flush_interval = 200
-    with TorchRecorder('trj.pt', 'wb') as rec:
-        for i in range(2000000):
+    with open_torch_mp('trj.pt', 'wb') as rec:
+        for i in range(2000):
             mol = dyn(mol)
-            rec.append(mol)
+            rec.write(mol)
             eng = round(Decimal(mol[p.eng].item()), 7)
             flush = i % flush_interval == flush_interval - 1
             real_time = round(Decimal(timer.value()), 4)

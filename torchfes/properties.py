@@ -60,7 +60,7 @@ bme_fix_tmp = f'blue_moon_fixman_correction_{tmp}'
 res_cen = 'restrained_purpose_sigma_0'
 
 mtd_cen = f'metadynamics_potential_center_{tmp}'
-mtd_wdt = f'metadynamics_potential_width_{tmp}'
+mtd_prc = f'metadynamics_precision_matrix_{tmp}'
 mtd_hgt = f'metadynamics_potential_height_{tmp}'
 mtd_gam = f'metadynamics_bias_factor_{tmp}'
 

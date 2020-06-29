@@ -39,7 +39,7 @@ def add_md(inp: Dict[str, Tensor], dtm: Union[float, Tensor],
         kbt = torch.ones_like(dtm) * kbt
     inp[p.dtm] = dtm
     inp[p.tim] = torch.zeros_like(dtm)
-    inp[p.stp] = torch.zeros_like(dtm, dtype=torch.long)
+    inp[p.stp] = torch.zeros_like(dtm)
     inp[p.kbt] = kbt
     inp[p.mom] = fn.maxwell(inp[p.pos], inp[p.ent], inp[p.mas], kbt)
 

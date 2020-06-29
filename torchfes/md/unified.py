@@ -10,6 +10,7 @@ from ..functional import noise
 def updt_tim(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     out[p.tim] = out[p.tim] + out[p.dtm] * stp
+    out[p.stp] = out[p.stp] + stp
     return out
 
 
