@@ -64,11 +64,12 @@ def main():
     mol, cont = fes.inp.continue_inp(init_mol, trj_path, device, args.init)
     mode = 'a' if cont else 'w'
     if cont:
-        mol = fes.rec.read_mtd(hil_path, mol)
+        mol = fes.rec.read_mtd(hil_path, mol, device)
         mol = fes.fes.mtd.mtd_to_wtmtd(mol, gam)
     eng, adj, mtd = setup_model(gam)
 
     dyn = md.PTPQ(eng, adj, fes.md.GlobalLangevin()).to(device)
+    mtd = mtd.to(device)
     with open_torch(trj_path, mode) as rec, open_torch(hil_path, mode) as hl:
         for i in range(100000):
             if i % 100 == 0:

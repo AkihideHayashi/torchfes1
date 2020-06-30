@@ -5,7 +5,8 @@ from .pathpair import PathPair
 from .recorder import open_torch
 
 
-def read_mtd(path: PathPair, inp: Optional[Dict[str, Tensor]] = None):
+def read_mtd(path: PathPair, inp: Optional[Dict[str, Tensor]] = None,
+             device=None):
     if inp is None:
         out = {}
     else:
@@ -13,4 +14,7 @@ def read_mtd(path: PathPair, inp: Optional[Dict[str, Tensor]] = None):
     with open_torch(path, 'rb') as f:
         for data in f:
             out = add_gaussian(out, data)
+    if device is not None:
+        for key in out:
+            out[key] = out[key].to(device)
     return out
