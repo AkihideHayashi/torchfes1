@@ -1,10 +1,11 @@
-from typing import Dict, Union
+from typing import Dict, Union, Callable
 
 import torch
 from torch import Tensor
 
 from . import functional as fn
 from . import properties as p
+from .recorder import open_torch, PathPair
 
 
 def init_inp(cel, pbc, elm, pos, mas=None):
@@ -86,3 +87,17 @@ def add_global_nose_hoover_chain(inp: Dict[str, Tensor],
     inp[p.mas_nhc] = mas_nhc
     inp[p.pos_nhc] = pos_nhc
     inp[p.mom_nhc] = mom_nhc
+
+
+def continue_inp(initializer: Callable, path: PathPair, device=None,
+                 init: bool = False):
+    if path.is_file() and not init:
+        with open_torch(path, 'rb') as f:
+            mol = f[-1]
+        cont = True
+    else:
+        mol = initializer()
+        cont = False
+    if device is not None:
+        mol = {key: val.to(device) for key, val in mol.items()}
+    return mol, cont

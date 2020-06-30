@@ -1,8 +1,7 @@
 from decimal import Decimal
-from typing import Dict
 import numpy as np
 import torch
-from torch import Tensor, jit
+from torch import jit
 from torch.utils.data import DataLoader
 import torchani
 from ignite.handlers.timing import Timer
@@ -13,29 +12,23 @@ import pointneighbor as pn
 from torchfes.data.collate import ToDictTensor
 from torchfes import forcefield as ff, md, inp, properties as p, api
 import torchfes as fes
-from torchfes.recorder import open_torch_mp
+from torchfes.recorder import open_torch, PathPair
 
 
-def read_mol():
-    atoms = read('diala.xyz')
+def init_mol():
+    atoms = read('../diala.xyz')
     atoms.cell = np.eye(3) * 40.0
     loader = DataLoader([atoms],
                         batch_size=1,
                         collate_fn=ToDictTensor(['H', 'C', 'N', 'O']))
-    return next(iter(loader))
-
-
-def main():
-    if torch.cuda.is_available():
-        device = 'cuda:0'
-    else:
-        device = 'cpu'
-    mol: Dict[str, Tensor] = read_mol()
-    mol = {key: val.to(device) for key, val in mol.items()}
+    mol = next(iter(loader))
     inp.add_nvt(mol, 0.5 * fs, 300 * kB)
     inp.add_global_langevin(mol, 100.0 * fs)
+    return mol
+
+
+def setup_model():
     model_torchani = torchani.models.ANI1ccx()
-    print(model_torchani.species)
     mdl = api.Unit(from_torchani(model_torchani, p.coo), Ha)
     eng = ff.EvalEnergies(mdl)
     rc_r = mdl.mdl.aev.rad.rc
@@ -49,18 +42,29 @@ def main():
             (p.coo, rc_a),
         ]
     )
+    return eng, adj
 
+
+def main():
+    if torch.cuda.is_available():
+        device = 'cuda:0'
+    else:
+        device = 'cpu'
+    trj_dir = PathPair('md')
+    mol, mode = fes.inp.continue_inp(init_mol, trj_dir, device, False)
+    eng, adj = setup_model()
     dyn = jit.script(md.TPQPT(eng, adj, md.GlobalLangevin()).to(device))
     timer = Timer()
     flush_interval = 200
-    with open_torch_mp('trj.pt', 'wb') as rec:
-        for i in range(2000):
+    with open_torch(trj_dir, mode) as rec:
+        for i in range(20000):
             mol = dyn(mol)
             rec.write(mol)
             eng = round(Decimal(mol[p.eng].item()), 7)
             flush = i % flush_interval == flush_interval - 1
             real_time = round(Decimal(timer.value()), 4)
-            print(f'{i} {eng:>10} {real_time:>5}', flush=flush)
+            stp = int(mol[fes.p.stp].item())
+            print(f'{stp} {eng:>10} {real_time:>5}', flush=flush)
             timer.reset()
 
 

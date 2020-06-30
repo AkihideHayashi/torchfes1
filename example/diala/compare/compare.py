@@ -12,11 +12,11 @@ import pointneighbor as pn
 from torchfes.data.collate import ToDictTensor
 from torchfes import forcefield as ff, md, inp, properties as p, api
 import torchfes as fes
-from torchfes.recorder.torch import TorchRecorder
+from torchfes.recorder.torch import open_torch, PathPair
 
 
 def read_mol():
-    atoms = read('diala.xyz')
+    atoms = read('../diala.xyz')
     atoms.cell = np.eye(3) * 40.0
     loader = DataLoader([atoms],
                         batch_size=1,
@@ -38,33 +38,33 @@ def main():
     eng = ff.EvalEnergies(mdl)
     rc_r = mdl.mdl.aev.rad.rc
     rc_a = mdl.mdl.aev.ang.rc
-    delta = 1.0
     adj = fes.adj.SetAdjSftSpcVecSod(
-        pn.Coo2BookKeeping(
-            pn.Coo2FulSimple(rc_r + delta), pn.StrictCriteria(delta), rc_r),
+        pn.Coo2FulSimple(rc_r),
         [
-            (p.coo, rc_r, True),
-            (p.coo, rc_a, True),
+            (p.coo, rc_r),
+            (p.coo, rc_a),
         ]
     )
 
     dyn = jit.script(md.PQP(eng, adj).to(device))
-    # num_dihed = torch.tensor([[11, 9, 15, 17], [11, 9, 7, 5]]) - 1
-    # colvar = Dihedral(num_dihed)
+    eng = jit.script(eng.to(device))
+    adj = jit.script(adj)
     timer = Timer()
-    flush_interval = 200
-    with TorchRecorder('trj.pt', 'wb') as rec:
+    with open_torch(PathPair('compare'), 'wb') as rec:
         for i in range(2000000):
             mol = dyn(mol)
-            rec.append(mol)
-            assert mol[p.pos].size(0) == 1
-            eng_ani = model_torchani((mol[p.elm], mol[p.pos]),
-                                     mol[p.cel][0], mol[p.pbc][0])
-            print(i, mol[p.eng].item(),
-                  mol[p.eng].item() - eng_ani.energies.item() *
-                  Ha, timer.value(),
-                  flush=i % flush_interval == flush_interval-1)
             timer.reset()
+            mol = adj(mol)
+            eng_pnpot = eng(mol)[p.eng_mol].item()
+            time_pnpot = timer.value()
+            rec.write(mol)
+            timer.reset()
+            eng_torch = model_torchani(
+                (mol[p.elm], mol[p.pos]),
+                mol[p.cel][0], mol[p.pbc][0]).energies.item()
+            time_torch = timer.value()
+            eng_pnpot = mol[p.eng].item()
+            print(i, eng_pnpot, eng_pnpot - eng_torch, time_pnpot, time_torch)
 
 
 if __name__ == "__main__":
