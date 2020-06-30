@@ -14,7 +14,7 @@ from torchfes.inp import init_inp, add_nvt, add_global_nose_hoover_chain
 import torchfes as fes
 from torchfes import md
 from torchfes import properties as p
-from torchfes.recorder import XYZRecorder, TorchRecorder, not_tmp
+from torchfes.recorder import XYZRecorder, open_torch, not_tmp, PathPair
 
 
 class R12(nn.Module):
@@ -147,7 +147,7 @@ def main():
 
     timer = ignite.handlers.Timer()
     with XYZRecorder('xyz', 'w', ['Ar'], 1) as xyz,\
-            TorchRecorder('trj.pt', 'w') as rec:
+            open_torch(PathPair('trj'), 'w') as rec:
         while True:
             inp = dyn(inp)
             tim = inp[p.tim].item() / fs
@@ -159,7 +159,7 @@ def main():
             else:
                 print(f'{tim:>5} {eng:> 7}')
             xyz.append(inp)
-            rec.append(not_tmp(inp))
+            rec.write(not_tmp(inp))
             if tim >= 10.0:
                 break
         print(timer.value())
