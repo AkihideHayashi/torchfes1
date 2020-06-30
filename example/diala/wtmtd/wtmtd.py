@@ -50,7 +50,7 @@ def setup_model(gam):
 
 
 def main():
-    gam = 6.0
+    gam = 40.0
     parser = argparse.ArgumentParser()
     parser.add_argument('--init', action='store_true')
     args = parser.parse_args()
@@ -70,7 +70,7 @@ def main():
 
     dyn = md.PTPQ(eng, adj, fes.md.GlobalLangevin()).to(device)
     with open_torch(trj_path, mode) as rec, open_torch(hil_path, mode) as hl:
-        for i in range(60000):
+        for i in range(100000):
             if i % 100 == 0:
                 mol, new = mtd(mol)
                 hl.write(new)
@@ -79,10 +79,10 @@ def main():
                     for v in new[p.mtd_hgt].tolist()
                 ])
                 stp = int(mol[p.stp].item())
-                print(stp, hgt)
+                print(stp, hgt, flush=True)
 
             mol = dyn(mol)
-            rec.write(mol)
+            rec.write(fes.rec.not_tmp(mol))
 
 
 if __name__ == "__main__":

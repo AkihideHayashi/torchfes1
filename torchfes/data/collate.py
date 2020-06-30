@@ -1,32 +1,16 @@
-from typing import List, Union
+from typing import List
 from ase import Atoms
 import numpy as np
 import torch
-from .ase import atoms_to_dict
+from .convert import atoms_to_single_dict_array, sym_to_elm
 from .numpy import stack
 from .. import properties as p
 from .default import default_values
 
 
-def sym_to_elm(symbols: Union[str, List, np.ndarray],
-               order: Union[np.ndarray, List[str]]):
-    """Transform symbols to elements."""
-    if not isinstance(order, list):
-        order = order.tolist()
-    if not isinstance(symbols, (str, list)):
-        symbols = symbols.tolist()
-    if isinstance(symbols, str):
-        if symbols in order:
-            return order.index(symbols)
-        else:
-            return -1
-    else:
-        return np.array([sym_to_elm(s, order) for s in symbols])
-
-
 def collate_single(data):
     if isinstance(data, Atoms):
-        return collate_single(atoms_to_dict(data))
+        return collate_single(atoms_to_single_dict_array(data))
     else:
         assert isinstance(data, dict)
         return {key: np.array(val) for key, val in data.items()}

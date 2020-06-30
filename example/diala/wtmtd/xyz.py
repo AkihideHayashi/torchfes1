@@ -1,18 +1,12 @@
-import numpy as np
-from ase import Atoms
 import torchfes as fes
 from torchfes.recorder import PathPair
-from torchfes import properties as p
+from torchfes.data.convert import dict_tensor_to_atoms_list
+from torchfes.recorder import not_tmp
 
 
-order = np.array(['H', 'C', 'N', 'O'])
 with fes.rec.open_torch(PathPair('trj'), 'r') as f:
-    data = f[-1]
+    data = not_tmp(f[-1])
+order = ['H', 'C', 'N', 'O']
 
-elm = data[p.elm].squeeze(0).numpy()
-pos = data[p.pos].squeeze(0).numpy()
-ent = elm >= 0
-
-atoms = Atoms(order[elm[ent]], pos[ent])
-print(atoms)
-atoms.write('test.xyz')
+atoms_list = dict_tensor_to_atoms_list(data, order)
+atoms_list[0].write('test.xyz')
