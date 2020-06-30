@@ -1,4 +1,4 @@
-from typing import Union, Dict
+from typing import Dict
 import multiprocessing
 from pathlib import Path
 import torch
@@ -8,9 +8,7 @@ from torch import Tensor
 class MultiProcessingTorchReader:
     """Multiprocess torch reader."""
 
-    def __init__(self, path: Union[str, Path]):
-        if isinstance(path, str):
-            path = Path(path)
+    def __init__(self, path: Path):
         self.process, self.queue = _create_reader_loop(path)
 
     def __iter__(self):

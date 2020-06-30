@@ -1,7 +1,6 @@
 import math
 from typing import Dict
 from decimal import Decimal
-from pathlib import Path
 import torch
 from torch import nn, Tensor
 from ase.units import fs, kB
@@ -37,11 +36,9 @@ def make_inp():
 
 
 def main():
-    trj_pre = Path('trj_pre.pt')
-    idx_pre = Path('idx_pre.pkl')
-    trj_path = Path('trj_bme.pt')
-    idx_path = Path('idx_bme.pkl')
-    with fes.rec.open_torch(trj_pre, 'rb', idx_pre) as f:
+    pre_path = fes.rec.PathPair('pre')
+    trj_path = fes.rec.PathPair('trj')
+    with fes.rec.open_torch(pre_path, 'rb') as f:
         mol = f[-1]
         mol.pop(fes.p.sld_rst)
     mode = 'wb'
@@ -56,7 +53,7 @@ def main():
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQs(eng, adj, kbt, col, 1e-7, True)
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(trj_path, mode, idx_path) as rec:
+    with fes.rec.open_torch(trj_path, mode) as rec:
         for _ in range(1000):
             mol = dyn(mol)
             rec.write({key: val.clone().detach() for key, val

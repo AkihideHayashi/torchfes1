@@ -4,9 +4,10 @@ import torchfes as fes
 
 
 def main():
-    datas = {key: [] for key in (fes.p.bme_cen, fes.p.bme_lmd, fes.p.bme_ktg,
-                                 fes.p.bme_fix)}
-    with fes.rec.open_torch('trj_bme.pt', 'rb', 'idx_bme.pkl') as f:
+    keys = (fes.p.bme_cen, fes.p.bme_lmd, fes.p.bme_ktg, fes.p.bme_fix)
+    datas = {key: [] for key in keys}
+    trj_path = fes.rec.PathPair('trj')
+    with fes.rec.open_torch(trj_path, 'rb') as f:
         for data in f:
             for key in datas:
                 datas[key].append(data[key])

@@ -1,37 +1,33 @@
 import sys
-from typing import Optional
 import shutil
 import argparse
 from pathlib import Path
 import tempfile
 import torchfes as fes
+from torchfes.recorder import PathPair, open_torch
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('exe', type=str,
                         choices=['repair', 'sanity-check'])
-    parser.add_argument('--trj', type=Path)
-    parser.add_argument('--idx', type=Path)
-    parser.add_argument('--trj-bk', type=Path)
-    parser.add_argument('--idx-bk', type=Path)
+    parser.add_argument('-f', type=Path, help='file')
+    parser.add_argument('-b', type=Path, help='backup')
     args = parser.parse_args()
     if args.exe == 'repair':
-        if args.trj_bk is None and args.idx_bk is None:
-            assert False
-            full_repair(args.trj, args.idx)
+        if args.b is None:
+            assert args.f is not None
+            full_repair(PathPair(args.f))
         else:
-            assert args.trj_bk is not None
-            assert args.idx_bk is not None
-            part_repair(args.trj, args.idx, args.trj_bk, args.idx_bk)
+            part_repair(PathPair(args.f), PathPair(args.b))
     elif args.exe == 'sanity-check':
-        sanity_check(args.trj, args.idx)
+        sanity_check(PathPair(args.f))
     else:
         raise NotImplementedError()
 
 
-def sanity_check(trj: Path, idx: Path):
-    with fes.rec.open_torch(trj, 'rb', idx) as f:
+def sanity_check(trj: PathPair):
+    with fes.rec.open_torch(trj, 'rb') as f:
         try:
             _ = f[-1]
             sys.exit(0)
@@ -39,37 +35,32 @@ def sanity_check(trj: Path, idx: Path):
             sys.exit(1)
 
 
-def part_repair(trj: Path, idx: Path, trj_bak: Path, idx_bak: Path):
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_trj = Path(tmp) / trj.name
-        tmp_idx = Path(tmp) / idx.name
-        shutil.copy(trj_bak, tmp_trj)
-        shutil.copy(idx_bak, tmp_idx)
-        with fes.rec.open_torch(trj, 'rb', idx) as fi, \
-                fes.rec.open_torch(tmp_trj, 'ab', tmp_idx) as fo, \
-                fes.rec.open_torch(trj_bak, 'rb', idx_bak) as fb:
+def part_repair(trj: PathPair, bak: PathPair):
+    with tempfile.TemporaryDirectory() as tmp_path:
+        tmp = PathPair(tmp_path)
+        shutil.copy(bak.trj, tmp.trj)
+        shutil.copy(bak.idx, tmp.idx)
+        with open_torch(bak, 'rb') as fb:
+            n_bak = len(fb)
+        with open_torch(trj, 'rb') as fi, open_torch(tmp, 'ab') as fo:
             try:
-                for i in range(len(fb), len(fi)):
+                for i in range(n_bak, len(fi)):
                     data = fi[i]
                     fo.write(data)
-            except RuntimeError:
+            except (RuntimeError, EOFError):
                 pass
-        shutil.move(tmp_idx, idx)
-        shutil.move(tmp_trj, trj)
+        shutil.move(tmp.trj, trj.trj)
+        shutil.move(tmp.idx, trj.idx)
 
 
-def full_repair(trj: Path, idx: Optional[Path]):
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_trj = Path(tmp) / trj.name
-        with fes.rec.open_torch(trj, 'rb') as fi, \
-                fes.rec.open_torch(tmp_trj, 'wb') as fo:
+def full_repair(trj: PathPair):
+    with tempfile.TemporaryDirectory() as tmp_path:
+        tmp = PathPair(tmp_path)
+        with open_torch(trj.trj, 'rb') as fi, open_torch(tmp, 'wb') as fo:
             for data in fi:
                 fo.write(data)
-        if idx is not None:
-            tmp_idx = Path(tmp) / idx.name
-            fes.rec.torch.index.make_index(tmp_trj, tmp_idx)
-            shutil.move(tmp_idx, idx)
-        shutil.move(tmp_trj, trj)
+        shutil.move(tmp.idx, trj.idx)
+        shutil.move(tmp.trj, trj.trj)
 
 
 if __name__ == "__main__":

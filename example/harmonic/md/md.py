@@ -1,5 +1,4 @@
 from decimal import Decimal
-from pathlib import Path
 import torch
 from ase.units import fs, kB
 import ignite
@@ -24,10 +23,9 @@ def make_inp():
 
 
 def main():
-    trj_path = Path('trj_md.pt')
-    idx_path = Path('idx_md.pkl')
+    trj_path = fes.rec.PathPair('md')
     if trj_path.is_file():
-        with fes.rec.open_torch(trj_path, 'rb', idx_path) as f:
+        with fes.rec.open_torch(trj_path, 'rb') as f:
             mol = f[-1]
         mode = 'ab'
     else:
@@ -41,7 +39,7 @@ def main():
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(trj_path, mode, idx_path) as rec:
+    with fes.rec.open_torch(trj_path, mode) as rec:
         for _ in range(10000):
             mol = dyn(mol)
             rec.write(mol)

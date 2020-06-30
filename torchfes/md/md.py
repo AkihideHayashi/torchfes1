@@ -4,7 +4,7 @@ import torch
 from torch import Tensor, nn
 
 from ..fes.bme import BMEJac, BMERtl, BMEShk, bme_det_lmd, BMEKTGFix
-from .fire import FIRE
+from ..opt import FIRE
 from .unified import updt_mom, updt_pos, updt_tim
 from ..forcefield import EvalEnergiesForces, EvalEnergies
 from .. import properties as p

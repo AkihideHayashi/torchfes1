@@ -1,7 +1,6 @@
 import math
 from typing import Dict
 from decimal import Decimal
-from pathlib import Path
 import torch
 from torch import nn, Tensor
 from ase.units import fs, kB
@@ -37,18 +36,17 @@ def make_inp():
 
 
 def main():
-    trj_path = Path('trj_wtmtd.pt')
-    idx_path = Path('idx_wtmtd.pkl')
-    hil_path = Path('hil_wtmtd.pt')
-    hdx_path = Path('hdx_wtmtd.pkl')
-    trn = fes.fes.mtd.meta_dynamics_to_well_tempared_metadynamics
-    gam = torch.tensor(2.0)
+    trj_path = fes.rec.PathPair('trj')
+    hil_path = fes.rec.PathPair('hil')
+    gam = 2.0
     if trj_path.is_file():
-        with fes.rec.open_torch(trj_path, 'rb', idx_path) as f:
+        with fes.rec.open_torch(trj_path, 'rb') as f:
             mol = f[-1]
+        assert hil_path.is_file()
         with fes.rec.open_torch(hil_path, 'rb') as f:
             for data in f:
-                fes.fes.mtd.add_gaussian(mol, trn(data, gam))
+                mol = fes.fes.mtd.add_gaussian(
+                    mol, fes.fes.mtd.mtd_to_wtmtd(data, gam))
         mode = 'ab'
     else:
         mol = make_inp()
@@ -63,9 +61,9 @@ def main():
     mtd = fes.fes.mtd.WellTemparedMetaDynamics(col, [0.1], 0.01, gam, True)
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
-    with fes.rec.open_torch(trj_path, mode, idx_path) as rec,\
-            fes.rec.open_torch(hil_path, mode, hdx_path) as hil:
-        for i in range(100000):
+    with fes.rec.open_torch(trj_path, mode) as rec,\
+            fes.rec.open_torch(hil_path, mode) as hil:
+        for i in range(10000):
             if i % 100 == 0:
                 mol, new = mtd(mol)
                 hil.write(new)

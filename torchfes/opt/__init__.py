@@ -4,3 +4,4 @@ from .con import WolfeCondition
 from .stp import LogSmapler
 from .linesearch import GeneralLineSearchOptimizer
 from . import utils
+from .fire import FIRE

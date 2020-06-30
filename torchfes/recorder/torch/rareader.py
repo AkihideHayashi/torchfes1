@@ -1,7 +1,6 @@
-from typing import Union
-from pathlib import Path
 import pickle
 import torch
+from .pathpair import PathPair
 
 
 def _read_all(path):
@@ -14,9 +13,9 @@ def _read_all(path):
 
 
 class RandomAccessTorchReader:
-    def __init__(self, path: Union[str, Path], index: Union[str, Path]):
-        self.idx = list(_read_all(index))
-        self.f = open(path, 'rb')
+    def __init__(self, path: PathPair):
+        self.idx = list(_read_all(path.idx))
+        self.f = open(path.trj, 'rb')
 
     def __len__(self):
         return len(self.idx)
@@ -39,3 +38,6 @@ class RandomAccessTorchReader:
 
     def __exit__(self, *_):
         self.close()
+
+    def write(self, _):
+        raise RuntimeError(f'{self}.write is not available.')

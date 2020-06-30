@@ -18,10 +18,8 @@ class ColVar(nn.Module):
 
 
 def main():
-    hil = {}
-    with fes.rec.open_torch('hil_wtmtd.pt', 'rb', 'hdx_wtmtd.pkl') as f:
-        for data in f:
-            hil = fes.fes.mtd.add_gaussian(hil, data)
+    hil_path = fes.rec.PathPair('hil')
+    hil = fes.rec.read_mtd(hil_path)
     min_ = -0.5
     max_ = 0.5
     bins = 40

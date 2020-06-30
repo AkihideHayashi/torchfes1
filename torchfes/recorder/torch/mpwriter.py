@@ -1,24 +1,20 @@
-import os
 import pickle
 import warnings
 import multiprocessing
-from typing import Union, Dict, Optional
-from pathlib import Path
+from multiprocessing import Queue
+from typing import Dict
 import torch
 from torch import Tensor
+from .pathpair import PathPair
 
 
 class MultiProcessingTorchWriter:
     """Multiprocess torch writer."""
-    def __init__(self, path: Union[str, Path], mode: str,
-                 index: Optional[Union[str, Path]] = None):
-        if isinstance(path, str):
-            path = Path(path)
-        if isinstance(index, str):
-            index = Path(index)
+
+    def __init__(self, path: PathPair, mode: str):
         if mode in ('r', 'w', 'a'):
             mode = mode + 'b'
-        self.process, self.queue = _create_writer_loop(path, mode, index)
+        self.process, self.queue = _create_writer_loop(path, mode)
 
     def write(self, inp: Dict[str, Tensor]):
         if self.queue.full():
@@ -43,24 +39,22 @@ class MultiProcessingTorchWriter:
         raise RuntimeError(f'{self}.__len__ is not available.')
 
 
-def _loop_torch_writer(path: Path, mode: str, queue: multiprocessing.Queue,
-                       index: Optional[Path]):
-    if index is None:
-        index = Path(os.devnull)
-    with open(path, mode) as f, open(index, mode) as fi:
+def _loop_torch_writer(path: PathPair, mode: str, queue: Queue):
+    path.mkdir()
+    with open(path.trj, mode) as ft, open(path.idx, mode) as fi:
         while True:
             data = queue.get()
             if data is StopIteration:
                 break
-            pickle.dump(f.tell(), fi)
-            torch.save(data, f)
-            f.flush()
+            pickle.dump(ft.tell(), fi)
+            torch.save(data, ft)
+            ft.flush()
             fi.flush()
 
 
-def _create_writer_loop(path: Path, mode: str, index: Optional[Path]):
+def _create_writer_loop(path: PathPair, mode: str):
     queue: multiprocessing.Queue = multiprocessing.Queue()
     process = multiprocessing.Process(
-        target=_loop_torch_writer, args=(path, mode, queue, index))
+        target=_loop_torch_writer, args=(path, mode, queue))
     process.start()
     return process, queue

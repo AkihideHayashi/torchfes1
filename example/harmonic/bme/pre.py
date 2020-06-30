@@ -1,7 +1,6 @@
 import math
 from typing import Dict
 from decimal import Decimal
-from pathlib import Path
 import torch
 from torch import nn, Tensor
 from ase.units import fs, kB
@@ -37,10 +36,9 @@ def make_inp():
 
 
 def main():
-    trj_path = Path('trj_pre.pt')
-    idx_path = Path('idx_pre.pkl')
-    if trj_path.is_file():
-        with fes.rec.open_torch(trj_path, 'rb', idx_path) as f:
+    pre_path = fes.rec.PathPair('pre')
+    if pre_path.is_file():
+        with fes.rec.open_torch(pre_path, 'rb') as f:
             mol = f[-1]
         mode = 'ab'
     else:
@@ -58,7 +56,7 @@ def main():
     )
     dyn = fes.md.PQF(eng, adj, fes.md.FIRE(0.5, 5, 0.5, 1.1, 0.5, 0.5 * fs))
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(trj_path, mode, idx_path) as rec:
+    with fes.rec.open_torch(pre_path, mode) as rec:
         for _ in range(100):
             mol = dyn(mol)
             rec.write(mol)

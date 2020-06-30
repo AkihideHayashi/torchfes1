@@ -19,7 +19,8 @@ class ColVar(nn.Module):
 
 def main():
     hil = {}
-    with fes.rec.open_torch('hil_mtd.pt', 'rb', 'hdx_mtd.pkl') as f:
+    hil_path = fes.rec.PathPair('hil')
+    with fes.rec.open_torch(hil_path, 'rb') as f:
         for data in f:
             hil = fes.fes.mtd.add_gaussian(hil, data)
     min_ = -0.5

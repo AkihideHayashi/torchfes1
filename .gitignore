@@ -132,4 +132,4 @@ dmypy.json
 *.hdf5
 *.pt
 *.xyz
-*.pkl
+*.pk

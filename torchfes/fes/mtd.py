@@ -113,17 +113,13 @@ def new_gaussian_wtmtd(prc: Tensor, hgt: Tensor, gam: Tensor,
     }
 
 
-def well_tempared_meta_dynamics_to_meta_dynamics(
-        hil: Dict[str, Tensor], gam: Tensor):
-    assert gam.size() == ()
+def wtmtd_to_mtd(hil: Dict[str, Tensor], gam: float):
     out = hil.copy()
     out[p.mtd_hgt] = hil[p.mtd_hgt] * (gam / (gam - 1))
     return out
 
 
-def meta_dynamics_to_well_tempared_metadynamics(
-        hil: Dict[str, Tensor], gam: Tensor):
-    assert gam.size() == ()
+def mtd_to_wtmtd(hil: Dict[str, Tensor], gam: float):
     out = hil.copy()
     out[p.mtd_hgt] = hil[p.mtd_hgt] * ((gam - 1) / gam)
     return out
@@ -190,5 +186,5 @@ class WellTemparedMetaDynamics(nn.Module):
             self.prc, self.hgt, self.gam, self.col(inp), self.pbc, inp)
         out = add_gaussian(inp, new)
         if self.new_mtd:
-            new = well_tempared_meta_dynamics_to_meta_dynamics(new, self.gam)
+            new = wtmtd_to_mtd(new, self.gam.item())
         return out, new

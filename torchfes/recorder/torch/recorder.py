@@ -1,20 +1,23 @@
-from typing import Union, Optional
+from typing import Union
 from pathlib import Path
 from .mpreader import MultiProcessingTorchReader
 from .mpwriter import MultiProcessingTorchWriter
 from .rareader import RandomAccessTorchReader
 from .index import make_index
+from .pathpair import PathPair
 
 
-def open_torch(path: Union[str, Path], mode: str,
-               index: Optional[Union[str, Path]] = None):
+def open_torch(path: Union[str, Path, PathPair], mode: str):
+    if isinstance(path, str):
+        path = Path(path)
     if mode in ('r', 'rb'):
-        if index is None:
-            return MultiProcessingTorchReader(path)
+        if isinstance(path, PathPair):
+            if not path.idx.is_file():
+                make_index(path)
+            return RandomAccessTorchReader(path)
         else:
-            index = Path(index)
-            if not index.is_file():
-                make_index(path, index)
-            return RandomAccessTorchReader(path, index)
+            return MultiProcessingTorchReader(path)
     else:
-        return MultiProcessingTorchWriter(path, mode, index=index)
+        if isinstance(path, Path):
+            raise ValueError('path must be PathPair for writing mode.')
+        return MultiProcessingTorchWriter(path, mode)
