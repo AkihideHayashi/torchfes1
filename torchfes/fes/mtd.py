@@ -133,7 +133,7 @@ class GaussianPotential(nn.Module):
         self.col = col
         if not isinstance(col.pbc, Tensor):
             raise KeyError(type(col.pbc))
-        self.pbc = col.pbc
+        self.register_buffer('pbc', col.pbc)
 
     def forward(self, inp: Dict[str, Tensor]):
         col = self.col(inp)
@@ -141,6 +141,9 @@ class GaussianPotential(nn.Module):
 
 
 class MetaDynamics(nn.Module):
+    prc: Tensor
+    hgt: Tensor
+
     def __init__(self, col: nn.Module,
                  wdt: Union[Tensor, List[float]], hgt: Union[Tensor, float],
                  ):
@@ -150,8 +153,8 @@ class MetaDynamics(nn.Module):
             wdt = torch.tensor(wdt)
         if isinstance(hgt, float):
             hgt = torch.tensor(hgt)
-        self.prc = 1 / (wdt * wdt)
-        self.hgt = hgt
+        self.register_buffer('prc', 1 / (wdt * wdt))
+        self.register_buffer('hgt', hgt)
 
     def forward(self, inp: Dict[str, Tensor]):
         new = new_gaussian_mtd(self.prc, self.hgt, self.col(inp))
@@ -161,6 +164,9 @@ class MetaDynamics(nn.Module):
 
 class WellTemparedMetaDynamics(nn.Module):
     pbc: Tensor
+    prc: Tensor
+    hgt: Tensor
+    gam: Tensor
 
     def __init__(self, col: nn.Module,
                  wdt: Union[Tensor, List[float]], hgt: Union[Tensor, float],
@@ -173,13 +179,13 @@ class WellTemparedMetaDynamics(nn.Module):
             hgt = torch.tensor(hgt)
         if isinstance(gam, float):
             gam = torch.tensor(gam)
-        self.prc = 1 / (wdt * wdt)
-        self.hgt = hgt
-        self.gam = gam
+        self.register_buffer('prc', 1 / (wdt * wdt))
+        self.register_buffer('hgt', hgt)
+        self.register_buffer('gam', gam)
         self.new_mtd = new_mtd
         if not isinstance(self.col.pbc, Tensor):
             raise KeyError(col.pbc)
-        self.pbc = self.col.pbc
+        self.register_buffer('pbc', self.col.pbc)
 
     def forward(self, inp: Dict[str, Tensor]):
         new = new_gaussian_wtmtd(

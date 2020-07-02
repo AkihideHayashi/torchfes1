@@ -19,7 +19,7 @@ class MultiProcessingTorchWriter:
     def write(self, inp: Dict[str, Tensor]):
         if self.queue.full():
             warnings.warn('Disk IO becomes peformance determinig.')
-        self.queue.put(inp)
+        self.queue.put({key: val.to('cpu') for key, val in inp.items()})
 
     def close(self):
         self.queue.put(StopIteration)
