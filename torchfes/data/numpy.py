@@ -6,6 +6,8 @@ def pad(array: np.ndarray, shape: List[int],
         constant_values: Union[bool, int, float, str]):
     assert array.ndim == len(shape)
     pad_width = [(0, max(0, si - asi)) for si, asi in zip(shape, array.shape)]
+    if not pad_width:
+        return array
     return np.pad(array, pad_width, mode='constant',
                   constant_values=constant_values)
 

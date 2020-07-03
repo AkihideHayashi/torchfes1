@@ -1,6 +1,7 @@
 """You should renew recorder.selector after edit this file."""
 import re
 
+idt = 'identity_number'
 tmp = 'tmp'
 sld_rst = f'should_reset_{tmp}'
 cel = 'cells'
@@ -103,3 +104,7 @@ def sod(typ: str, rc: float):
 
 def is_tmp(key: str):
     return key.split('_')[-1] == tmp
+
+
+def is_mtd(key: str):
+    return key.split('_')[0] == 'metadynamics'

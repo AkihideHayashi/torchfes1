@@ -11,4 +11,6 @@ default_values = {
     p.dtm: nan,
     p.tim: nan,
     p.frc: 0.0,
+    p.sts: 0.0,
+    p.eng: 0.0,
 }

@@ -291,3 +291,31 @@ class PQTQsPr(nn.Module):
         out = updt_mom(out, 0.5)
         out = self.rtl(out)
         return out
+
+
+class MDSteps(nn.Module):
+    def __init__(self, dyn, n: int):
+        super().__init__()
+        self.dyn = dyn
+        self.n = n
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = inp.copy()
+        for _ in range(self.n):
+            out = self.dyn(out)
+        return out
+
+
+class MTDSteps(nn.Module):
+    def __init__(self, dyn, mtd, n: int):
+        super().__init__()
+        self.dyn = dyn
+        self.mtd = mtd
+        self.n = n
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = inp.copy()
+        for _ in range(self.n):
+            out = self.dyn(out)
+        out, new = self.mtd(out)
+        return out, new
