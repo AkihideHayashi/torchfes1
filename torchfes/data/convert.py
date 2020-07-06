@@ -86,3 +86,11 @@ def dict_tensor_to_atoms_list(atoms: Dict[str, Tensor], order: List[str]):
         dict_array_to_single_dict_array_list(
             dict_tensor_to_dict_array(atoms, order))
     ]
+
+
+def unbind(atoms: Dict[str, Tensor]):
+    assert atoms[p.pos].dim() == 3
+    n = atoms[p.pos].size(0)
+    for key in atoms:
+        assert atoms[key].size(0) == n, key
+    return [{key: atoms[key][i] for key in atoms} for i in range(n)]

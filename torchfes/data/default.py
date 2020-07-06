@@ -2,6 +2,7 @@ from math import nan
 from .. import properties as p
 
 default_values = {
+    p.idt: -1,
     p.pos: 0.0,
     p.sym: '',
     p.elm: -1,
@@ -13,4 +14,5 @@ default_values = {
     p.frc: 0.0,
     p.sts: 0.0,
     p.eng: 0.0,
+    p.ent: False
 }

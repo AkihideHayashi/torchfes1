@@ -73,7 +73,7 @@ class EvalEnergiesForces(nn.Module):
 
 class EvalEnergiesForcesGeneral(nn.Module):
 
-    def __init__(self, eng: nn.Module, gen: nn.Module, adj: nn.Module):
+    def __init__(self, eng: EvalEnergies, gen: nn.Module, adj: nn.Module):
         super().__init__()
         self.eng = EvalEnergiesForces(eng)
         self.gen = gen

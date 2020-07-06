@@ -61,3 +61,14 @@ def nhc_conserve(inp: Dict[str, Tensor], ddof: Tensor):
     term3 = term3.sum(-1)
     out[p.con_nhc] = term1 + term2 + term3 + inp[p.eng_mol]
     return out
+
+
+def max_frc(inp: Dict[str, Tensor], n_elm: int):
+    elm = inp[p.elm]
+    frc = inp[p.frc].norm(p=2, dim=-1)
+    forces = []
+    for i in range(n_elm):
+        frc_elm = torch.masked_fill(frc, elm == i, 0.0)
+        frc_elm_max, _ = frc_elm.max(dim=1)
+        forces.append(frc_elm_max)
+    return torch.stack(forces, dim=1)
