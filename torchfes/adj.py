@@ -10,6 +10,9 @@ from . import properties as p
 
 
 def get_adj_sft_spc(inp: Dict[str, Tensor], typ: str, rc: float):
+    if p.nei_adj(typ, rc) not in inp:
+        print(inp.keys())
+        raise KeyError()
     adj = inp[p.nei_adj(typ, rc)]
     sft = inp[p.nei_sft(typ, rc)]
     spc = inp[p.nei_spc(typ, rc)]
@@ -25,12 +28,6 @@ def vec_sod(inp: Dict[str, Tensor], adj: AdjSftSpc):
         return pn.lil2_vec_sod(adj, pos, cel)
     else:
         raise RuntimeError('adj is not lil2 nor coo2.')
-
-
-def get_vec_sod(inp: Dict[str, Tensor], typ: str, rc: float):
-    vec = inp[p.vec(typ, rc)]
-    sod = inp[p.sod(typ, rc)]
-    return VecSod(vec=vec, sod=sod)
 
 
 def set_coo_adj_sft_spc_vec_sod(

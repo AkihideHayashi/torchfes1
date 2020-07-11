@@ -65,6 +65,11 @@ mtd_prc = f'metadynamics_precision_matrix_{tmp}'
 mtd_hgt = f'metadynamics_potential_height_{tmp}'
 mtd_gam = f'metadynamics_bias_factor_{tmp}'
 
+mtd_dep_cen = 'metadynamics_potential_center'
+mtd_dep_prc = 'metadynamics_precision_matrix'
+mtd_dep_hgt = 'metadynamics_potential_height'
+mtd_dep_gam = 'metadynamics_bias_factor'
+
 coo = 'coo'
 lil = 'lil'
 

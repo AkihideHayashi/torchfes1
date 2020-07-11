@@ -19,6 +19,7 @@ default_mask_keys = [p.idt, p.sld_rst, p.cel, p.pbc, p.elm, p.sym,
                      p.bme_ktg, p.bme_ktg_tmp, p.bme_mmt, p.bme_mmt_det,
                      p.bme_fix, p.bme_fix_tmp,
                      p.res_cen,
+                     p.mtd_dep_cen, p.mtd_dep_gam, p.mtd_dep_hgt, p.mtd_dep_prc
                      ]
 
 
