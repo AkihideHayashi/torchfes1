@@ -33,39 +33,44 @@ class EvalEnergies(nn.Module):
 
 
 class EvalEnergiesForces(nn.Module):
-    def __init__(self, eng: EvalEnergies):
+    def __init__(self, eng: EvalEnergies, mod: Optional[nn.Module] = None):
         super().__init__()
         assert isinstance(eng, EvalEnergies)
         self.eng = eng
+        self.mod = mod
 
     def forward(self, inp: Dict[str, Tensor],
-                frc: bool = True, sts: bool = False,
-                frc_grd: bool = False, retain_graph: Optional[bool] = None):
+                requires_frc: bool = True,
+                requires_sts: bool = False,
+                create_graph: bool = False,
+                retain_graph: Optional[bool] = None):
         pos = inp[p.pos]
         cel = inp[p.cel]
-        if frc and not pos.requires_grad:
+        if requires_frc and not pos.requires_grad:
             pos.requires_grad_()
-        if sts and not cel.requires_grad:
+        if requires_sts and not cel.requires_grad:
             cel.requires_grad_()
         out: Dict[str, Tensor] = self.eng(inp)
         eng_mol = out[p.eng_mol]
         eng_res = out[p.eng_res].sum(1)
         assert eng_mol.dim() == 1
         assert eng_res.dim() == 1
-        if frc:
-            out[p.frc_mol] = grad(-eng_mol, pos, create_graph=frc_grd,
-                                  retain_graph=retain_graph)
-            out[p.frc_res] = grad(-eng_res, pos, create_graph=frc_grd,
-                                  retain_graph=retain_graph)
+        if requires_frc:
+            out[p.frc_mol] = grad(-eng_mol, pos, create_graph=create_graph,
+                                  retain_graph=True)
+            out[p.frc_res] = grad(-eng_res, pos, create_graph=create_graph,
+                                  retain_graph=True)
             out[p.frc] = out[p.frc_mol] + out[p.frc_res]
-        if sts:
-            out[p.sts_mol] = grad(-eng_mol, cel, create_graph=frc_grd,
-                                  retain_graph=retain_graph)
-            out[p.sts_res] = grad(-eng_res, pos, create_graph=frc_grd,
-                                  retain_graph=retain_graph)
+        if requires_sts:
+            out[p.sts_mol] = grad(-eng_mol, cel, create_graph=create_graph,
+                                  retain_graph=True)
+            out[p.sts_res] = grad(-eng_res, pos, create_graph=create_graph,
+                                  retain_graph=True)
             out[p.sts] = out[p.sts_mol] + out[p.sts_res]
+        if self.mod is not None:
+            out = self.mod(out, create_graph=create_graph, retain_graph=True)
         if retain_graph is None:
-            retain_graph = frc_grd
+            retain_graph = create_graph
         if not retain_graph:
             detach_(out)
         return out
@@ -80,15 +85,15 @@ class EvalEnergiesForcesGeneral(nn.Module):
         self.adj = adj
 
     def forward(self, env: Dict[str, Tensor], pos: Tensor,
-                frc_grd: bool = False):
+                create_graph: bool = False):
         if not pos.requires_grad:
             pos = pos.clone().requires_grad_()
         inp = self.gen(env, pos)
         out = self.adj(inp)
         out = self.eng(out, retain_graph=True)
         eng_tot = out[p.eng]
-        frc = grad(-eng_tot, pos, create_graph=frc_grd)
-        if not frc_grd:
+        frc = grad(-eng_tot, pos, create_graph=create_graph)
+        if not create_graph:
             detach_(out)
             pef = PosEngFrc(pos=pos.clone().detach(),
                             eng=eng_tot.clone().detach().unsqueeze(-1),

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import torch
 from torch import Tensor, nn
@@ -102,9 +102,10 @@ class PQP(nn.Module):
 class PQF(nn.Module):
     """Leap frog FIRE."""
 
-    def __init__(self, eng: EvalEnergies, adj: nn.Module, fire: FIRE):
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, fire: FIRE,
+                 mod: Optional[nn.Module] = None):
         super().__init__()
-        self.evl = AdjEvl(adj, EvalEnergiesForces(eng))
+        self.evl = AdjEvl(adj, EvalEnergiesForces(eng, mod))
         self.reset = Reset(self.evl)
         self.fir = fire
 
