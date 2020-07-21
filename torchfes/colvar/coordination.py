@@ -125,6 +125,7 @@ class Coordination(nn.Module):
         dic: Dict[str, List[float]] = {}
         for n, ((i, j), prp) in enumerate(items.items()):
             elm[i, j] = n
+            elm[j, i] = n
             for key, val in prp.items():
                 if key not in dic:
                     dic[key] = []

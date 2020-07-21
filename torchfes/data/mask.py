@@ -1,6 +1,9 @@
 from typing import Dict, List
 from torch import Tensor
 from .. import properties as p
+from .torch import stack
+from .default import default_values
+
 
 default_mask_keys = [p.idt, p.sld_rst, p.cel, p.pbc, p.elm, p.sym,
                      p.ent, p.pos,
@@ -40,8 +43,17 @@ def masked_scatter(mol: Dict[str, Tensor], mask: Tensor,
         if key not in keys:
             ret[key] = source[key]
         else:
-            tmp = mask.clone()
-            for i in range(mol[key].dim() - 1):
-                tmp.unsqueeze_(-1)
-            ret[key] = mol[key].masked_scatter(tmp, source[key])
+            if mol[key].dim() == 1:
+                ret[key] = mol[key].masked_scatter(mask, source[key])
+            else:
+                tmp = list(mol[key].unbind(0))
+                src = source[key].unbind(0)
+                j = 0
+                for i, m in enumerate(mask):
+                    if m.item():
+                        tmp[i] = src[j]
+                        j += 1
+                dv = default_values[key]
+                assert isinstance(dv, (int, float, bool))
+                ret[key] = stack(tmp, dv, dim=0)
     return ret

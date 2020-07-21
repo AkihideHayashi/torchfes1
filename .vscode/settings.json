@@ -1,4 +1,5 @@
 {
-    "python.pythonPath": "/Users/akihide/.pyenv/versions/3.8.1/bin/python",
-    "editor.rulers": [80]
+    "editor.rulers": [
+        80
+    ]
 }

@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict
 
 from torch import Tensor, nn
@@ -5,6 +6,7 @@ from torch import Tensor, nn
 
 class ColVarSft(nn.Module):
     def __init__(self, col, val):
+        warnings.warn('ColVarSht is deprecated.')
         super().__init__()
         self.col = col
         self.val = val
