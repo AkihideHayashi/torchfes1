@@ -27,6 +27,8 @@ class EvalEnergies(nn.Module):
         out[p.eng_mol] = eng_mdl.eng_mol
         out[p.eng_atm_std] = eng_mdl.eng_atm_std
         out[p.eng_mol_std] = eng_mdl.eng_mol_std
+        out[p.eng_atm_ens] = eng_mdl.eng_atm_ens
+        out[p.eng_mol_ens] = eng_mdl.eng_mol_ens
         out[p.eng_res] = eng_res
         out[p.eng] = eng_tot
         return out
@@ -73,6 +75,8 @@ class EvalEnergiesForces(nn.Module):
             retain_graph = create_graph
         if not retain_graph:
             detach_(out)
+        if p.fix in out:
+            out[p.frc].masked_fill_(out[p.fix], 0.0)
         return out
 
 

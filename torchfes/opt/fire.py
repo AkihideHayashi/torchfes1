@@ -35,8 +35,8 @@ class FIRE(nn.Module):
         f_dec: f_dec. 0 < f_dec < 1
         dtm_max: \Delta t_max. 0 < dtm_max
     """
-    def __init__(self, a0: float, n_min: int, f_a: float,
-                 f_inc: float, f_dec: float, dtm_max: float):
+    def __init__(self, dtm_max: float, a0: float = 0.1, n_min: int = 5,
+                 f_a: float = 0.99, f_inc: float = 1.1, f_dec: float = 0.5):
         super().__init__()
         assert 0 < f_a < 1
         assert f_inc > 1

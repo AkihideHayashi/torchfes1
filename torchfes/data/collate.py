@@ -12,7 +12,7 @@ def collate_single(data):
     if isinstance(data, Atoms):
         return collate_single(atoms_to_single_dict_array(data))
     else:
-        assert isinstance(data, dict)
+        assert isinstance(data, dict), type(data)
         return {key: np.array(val) for key, val in data.items()}
 
 
