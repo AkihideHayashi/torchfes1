@@ -6,9 +6,10 @@ from .. import properties as p
 
 class NudgedElasticBand(nn.Module):
 
-    def __init__(self, k: float):
+    def __init__(self, k: float, nudged=True):
         super().__init__()
         self.k = torch.tensor(k)
+        self.nudged = nudged
 
     def forward(self, inp: Dict[str, Tensor], create_graph, retain_graph):
         pos = inp[p.pos]
@@ -19,7 +20,12 @@ class NudgedElasticBand(nn.Module):
         vec_pls = pos_pls - pos_zer
         vec_mns = pos_zer - pos_mns
 
-        frc_neb = nudge(frc[1:-1, :, :], vec_pls, vec_mns, self.k)
+        if self.nudged:
+            frc_neb = nudged_elastic_band(
+                frc[1:-1, :, :], vec_pls, vec_mns, self.k)
+        else:
+            frc_neb = elastic_band(
+                frc[1:-1, :, :], vec_pls, vec_mns, self.k)
         frc = frc + torch.nn.functional.pad(frc_neb, [0, 0, 0, 0, 1, 1])
         out = inp.copy()
         out[p.frc] = frc
@@ -34,8 +40,12 @@ def dot(a: Tensor, b: Tensor):
     return (a * b).sum(dim=-2, keepdim=True).sum(dim=-1, keepdim=True)
 
 
-def nudge(frc, vecp, vecm, k):
+def nudged_elastic_band(frc, vecp, vecm, k):
     tau = unit(unit(vecp) + unit(vecm))
     term1 = dot(frc, tau) * tau
     term2 = k * dot(vecp - vecm, tau) * tau
     return - term1 + term2
+
+
+def elastic_band(frc, vecp, vecm, k):
+    return (vecp - vecm) * k

@@ -56,7 +56,7 @@ class QuasiNewtonInitWithExact(nn.Module):
         self.tol_inv_eig = tol_inv_eig
 
     def forward(self, inp: PosEngFrc, env: Dict[str, Tensor]):
-        _, pef = self.evl(env, inp.pos, frc_grd=True)
+        _, pef = self.evl(env, inp.pos, create_graph=True)
         frc = pef.frc
         pos = pef.pos
         hes_lst = []

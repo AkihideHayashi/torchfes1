@@ -36,6 +36,10 @@ def _linear_interpolation(ini, fin, n):
         assert (fin == ini).all()
         size = [n] + list(ini.size())
         return ini[None].expand(size)
+    if ini.dtype == torch.long:
+        assert (fin == ini).all()
+        size = [n] + list(ini.size())
+        return ini[None].expand(size)
     n = n - 1
     return torch.stack([(ini * (n - i) + fin * i) / n for i in range(n + 1)])
 

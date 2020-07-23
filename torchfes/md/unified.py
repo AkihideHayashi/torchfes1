@@ -18,6 +18,8 @@ def updt_mom(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     dtm = out[p.dtm][:, None, None]
     out[p.mom] = out[p.mom] + out[p.frc] * dtm * stp
+    if p.fix in out:
+        out[p.mom].masked_fill_(out[p.fix], 0.0)
     return out
 
 
@@ -25,7 +27,11 @@ def updt_pos(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     dtm = out[p.dtm][:, None, None]
     mas = out[p.mas][:, :, None]
-    out[p.pos] = out[p.pos] + out[p.mom] * dtm / mas * stp
+    if p.fix in out:
+        out[p.pos] = torch.where(
+            out[p.fix], out[p.pos], out[p.pos] + out[p.mom] * dtm / mas * stp)
+    else:
+        out[p.pos] = out[p.pos] + out[p.mom] * dtm / mas * stp
     return out
 
 
