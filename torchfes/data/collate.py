@@ -2,7 +2,7 @@ from typing import List
 from ase import Atoms
 import numpy as np
 import torch
-from .convert import atoms_to_single_dict_array, sym_to_elm
+from .convert import _atoms_to_array, sym_to_elm
 from .numpy import stack
 from .. import properties as p
 from .default import default_values
@@ -10,7 +10,7 @@ from .default import default_values
 
 def collate_single(data):
     if isinstance(data, Atoms):
-        return collate_single(atoms_to_single_dict_array(data))
+        return collate_single(_atoms_to_array(data))
     else:
         assert isinstance(data, dict), type(data)
         return {key: np.array(val) for key, val in data.items()}

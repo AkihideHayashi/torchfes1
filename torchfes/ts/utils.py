@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from .. import properties as p
-from ..data.convert import unbind
+from ..data.mol import unbind
 from ..data.mask import default_mask_keys
 
 

@@ -5,7 +5,7 @@ from torch import Tensor
 from .pathpair import PathPair
 
 
-def load_all(path):
+def _load_all(path):
     with open(path, 'rb') as f:
         while True:
             try:
@@ -24,7 +24,7 @@ class TorchTrajectory:
         if not path.is_dir():
             path.mkdir()
         if path.idx.is_file() and mode in ('ab', 'rb'):
-            self.idx = list(load_all(path.idx))
+            self.idx = list(_load_all(path.idx))
         else:
             self.idx = []
         self.f_trj = open(path.trj, mode)

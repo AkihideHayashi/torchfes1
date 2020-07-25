@@ -5,7 +5,7 @@ from .torch import stack
 from .default import default_values
 
 
-default_mask_keys = [p.idt, p.sld_rst, p.cel, p.pbc, p.elm, p.sym,
+default_mask_keys = [p.idt, p.rst, p.cel, p.pbc, p.elm, p.sym,
                      p.ent, p.pos,
                      p.eng, p.eng_mol, p.eng_atm,
                      p.eng_mol_std, p.eng_atm_std, p.eng_res,

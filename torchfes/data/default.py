@@ -4,7 +4,6 @@ from .. import properties as p
 default_values = {
     p.idt: -1,
     p.pos: 0.0,
-    p.sym: '',
     p.elm: -1,
     p.cel: 0.0,
     p.pbc: True,
