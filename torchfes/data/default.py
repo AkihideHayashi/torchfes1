@@ -23,6 +23,8 @@ default_values = {
     p.eng_mol: 0.0,
     p.eng_mol_std: 0.0,
     p.eng_res: 0.0,
+    p.eng_mol_ens: 0.0,
+    p.eng_atm_ens: 0.0,
     p.kbt: 0.0,
     p.ent: False,
     p.mom: 0.0,
