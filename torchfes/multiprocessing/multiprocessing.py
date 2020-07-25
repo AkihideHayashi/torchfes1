@@ -10,7 +10,7 @@ class QueueProcess:
         self.process.start()
 
     def close(self):
-        self.process.terminate()
+        self.put(StopIteration)
         self.process.join()
         del self._put
         del self._get

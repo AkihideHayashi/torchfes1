@@ -68,5 +68,5 @@ def _atoms_to_array(atoms: Atoms):
         p.sym: np.array(atoms.get_chemical_symbols()),
     }
     if p.idt in atoms.info:
-        ret[p.idt] = atoms.info[p.idt]
+        ret[p.idt] = np.array(atoms.info[p.idt])
     return ret

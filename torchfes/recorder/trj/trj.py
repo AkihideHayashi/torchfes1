@@ -21,7 +21,7 @@ class TorchTrajectory:
             raise KeyError(mode)
         if isinstance(path, (str, Path)):
             path = PathPair(path)
-        if not path.is_dir():
+        if (not path.is_dir()) and (mode in ('wb', 'ab')):
             path.mkdir()
         if path.idx.is_file() and mode in ('ab', 'rb'):
             self.idx = list(_load_all(path.idx))
