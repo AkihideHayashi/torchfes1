@@ -5,7 +5,6 @@ from torch import Tensor
 
 from .. import properties as p
 from ..data.mol import unbind
-from ..data.mask import default_mask_keys
 
 
 def inter_image_vec(pos: Tensor) -> Tensor:
@@ -46,8 +45,6 @@ def _linear_interpolation(ini, fin, n):
 
 def linear_interpolation(inp: Dict[str, Tensor], n: int):
     assert inp[p.pos].size(0) == 2
-    for key in inp:
-        assert key in default_mask_keys
     mid = unbind(inp)
     out = {}
     for key in inp:
