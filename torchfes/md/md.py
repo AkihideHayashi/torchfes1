@@ -55,12 +55,12 @@ class Reset(nn.Module):
         self.evl = evl
 
     def forward(self, inp: Dict[str, Tensor]):
-        if p.sld_rst not in inp:
-            inp[p.sld_rst] = inp[p.dtm] == inp[p.dtm]
-        if inp[p.sld_rst].any():
+        if p.rst not in inp:
+            inp[p.rst] = inp[p.dtm] == inp[p.dtm]
+        if inp[p.rst].any():
             out = updt_tim(inp, -1.0)
             out = self.evl(out)
-            out[p.sld_rst] = torch.zeros_like(out[p.sld_rst])
+            out[p.rst] = torch.zeros_like(out[p.rst])
             return out
         else:
             return inp

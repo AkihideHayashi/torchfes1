@@ -1,3 +1,4 @@
+from pathlib import Path
 import math
 from typing import Dict
 from decimal import Decimal
@@ -36,11 +37,11 @@ def make_inp():
 
 
 def main():
-    pre_path = fes.rec.PathPair('pre')
-    trj_path = fes.rec.PathPair('trj')
-    with fes.rec.open_torch(pre_path, 'rb') as f:
+    pre_path = Path('pre')
+    trj_path = Path('trj')
+    with fes.rec.TorchTrajectory(pre_path, 'rb') as f:
         mol = f[-1]
-        mol.pop(fes.p.sld_rst)
+        mol.pop(fes.p.rst)
     mode = 'wb'
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
     col = ColVar()
@@ -53,11 +54,10 @@ def main():
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQs(eng, adj, kbt, col, 1e-7, True)
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(trj_path, mode) as rec:
+    with fes.rec.open_trj(trj_path, mode) as rec:
         for _ in range(1000):
             mol = dyn(mol)
-            rec.write({key: val.clone().detach() for key, val
-                       in fes.rec.selector.not_tmp(mol).items()})
+            rec.put(fes.data.filter_save_trj(mol))
             tim = round(Decimal(timer.value()), 3)
             timer.reset()
             print(f'{_} {tim}')

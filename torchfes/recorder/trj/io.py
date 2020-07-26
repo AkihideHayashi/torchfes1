@@ -20,8 +20,8 @@ def _write(put: Queue, _: Queue, path: Union[str, Path], unbind, digit):
             f.append(data)
 
 
-def _read_all(put: Queue, get: Queue, path: Union[str, Path], recorder):
-    with recorder(path, 'rb') as f:
+def _read_all(put: Queue, get: Queue, path: Union[str, Path]):
+    with TorchTrajectory(path, 'rb') as f:
         for data in f:
             get.put(data)
             if not put.empty():

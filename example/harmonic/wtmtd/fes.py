@@ -1,4 +1,6 @@
+import sys
 import math
+from pathlib import Path
 from typing import Dict
 import matplotlib.pyplot as plt
 import torch
@@ -18,14 +20,19 @@ class ColVar(nn.Module):
 
 
 def main():
-    hil_path = fes.rec.PathPair('hil')
-    hil = fes.rec.read_mtd(hil_path)
+    n = int(sys.argv[1])
+    hil = {}
+    hil_path = Path('hil')
+    with fes.rec.open_trj(hil_path, 'rb') as f:
+        for data in f:
+            hil = fes.fes.mtd.cat_gaussian(hil, data)
     min_ = -0.5
     max_ = 0.5
     bins = 40
 
     x = fes.analyze.histc_axis(bins, min_, max_)
-    y = -fes.fes.mtd.gaussian_potential(x[:, None], ColVar().pbc, hil)
+    hil = {key: val[n:n+1] for key, val in hil.items()}
+    y = -fes.fes.mtd.gaussian(hil, ColVar().pbc, x[:, None])
 
     plt.plot(x, y - y.min())
     plt.plot(x, x * x)

@@ -1,3 +1,4 @@
+from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 import torchfes as fes
@@ -6,8 +7,8 @@ import torchfes as fes
 def main():
     keys = (fes.p.bme_cen, fes.p.bme_lmd, fes.p.bme_ktg, fes.p.bme_fix)
     datas = {key: [] for key in keys}
-    trj_path = fes.rec.PathPair('trj')
-    with fes.rec.open_torch(trj_path, 'rb') as f:
+    trj_path = Path('trj')
+    with fes.rec.open_trj(trj_path, 'rb') as f:
         for data in f:
             for key in datas:
                 datas[key].append(data[key])

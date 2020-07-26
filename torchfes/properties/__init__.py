@@ -24,6 +24,9 @@ default_values = {
     mom: 0.0,
     chg: 0.0,
     fix: False,
+    mtd_cen: 0.0,
+    mtd_hgt: 0.0,
+    mtd_prc: 0.0,
 }
 
 for key in atoms:

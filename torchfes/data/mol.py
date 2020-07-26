@@ -20,7 +20,7 @@ def _get_n_batch(mol: Dict[str, Tensor]) -> int:
         if n is None:
             n = mol[key].size(0)
         assert key in batch
-        assert mol[key].size(0) == n, key
+        assert mol[key].size(0) in (1, n), key
     assert n is not None
     return n
 
@@ -36,13 +36,36 @@ def _mask_ent(mol: Dict[str, Tensor]):
     return ret
 
 
+def _mask_mtd_ind(mol: Dict[str, Tensor]):
+    if p.mtd_hgt not in mol:
+        return mol
+    mask = mol[p.mtd_hgt] != 0
+    ret = mol.copy()
+    ret[p.mtd_hgt] = mol[p.mtd_hgt][mask]
+    ret[p.mtd_cen] = mol[p.mtd_cen][mask]
+    ret[p.mtd_prc] = mol[p.mtd_prc][mask]
+    if p.mtd_gam in mol:
+        ret[p.mtd_gam] = mol[p.mtd_gam][mask]
+    return ret
+
+
+def _mask(mol: Dict[str, Tensor]):
+    return _mask_mtd_ind(_mask_ent(mol))
+
+
 def unbind(mol: Dict[str, Tensor]):
     n = _get_n_batch(mol)
     ret: List[Dict[str, Tensor]] = [{} for _ in range(n)]
     for key in mol:
-        for i in range(n):
-            ret[i][key] = mol[key][i]
-    return [_mask_ent(m) for m in ret]
+        if mol[key].size(0) == n:
+            for i in range(n):
+                ret[i][key] = mol[key][i]
+        elif mol[key].size(0) == 1:
+            for i in range(n):
+                ret[i][key] = mol[key].squeeze(0)
+        else:
+            raise RuntimeError()
+    return [_mask(m) for m in ret]
 
 
 def _get_keys(mol: List[Dict[str, Tensor]]):

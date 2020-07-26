@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 from typing import Dict
 from decimal import Decimal
 import torch
@@ -17,7 +18,7 @@ class ColVar(nn.Module):
 
     def forward(self, inp: Dict[str, Tensor]):
         ret = inp[fes.p.pos][:, 0, 0][:, None]
-        assert ret.size() == (1, 1)
+        assert ret.size(1) == 1
         return ret
 
 
@@ -33,19 +34,25 @@ def make_inp():
     inp = fes.inp.init_inp(cel, pbc, elm, pos, mas)
     fes.inp.add_nvt(inp, 1.0 * fs, 300 * kB)
     fes.inp.add_global_langevin(inp, 100.0 * fs)
+    inp = fes.data.reprecate(inp, 3)
     return inp
 
 
-def main():
-    trj_path = fes.rec.PathPair('trj')
-    hil_path = fes.rec.PathPair('hil')
-    if trj_path.is_file():
-        with fes.rec.open_torch(trj_path, 'rb') as f:
+def make_inp_or_continue(path: Path):
+    if path.is_file():
+        with fes.rec.open_trj(path, 'rb') as f:
             mol = f[-1]
         mode = 'ab'
     else:
         mol = make_inp()
         mode = 'wb'
+    return mol, mode
+
+
+def main():
+    trj_path = Path('trj')
+    hil_path = Path('hil')
+    mol, mode = make_inp_or_continue(trj_path)
     col = ColVar()
     res = fes.fes.mtd.GaussianPotential(col)
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
@@ -53,23 +60,29 @@ def main():
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    mtd = fes.fes.mtd.MetaDynamics(col, [0.1], 0.01)
+    mtd = fes.fes.mtd.EnsembleMTD(fes.fes.mtd.MetaDynamics(col, [0.1], 0.01))
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(trj_path, mode) as rec,\
-            fes.rec.open_torch(hil_path, mode) as hil:
+    with fes.rec.open_trj(trj_path, mode) as rec,\
+            fes.rec.open_trj(hil_path, mode) as hil:
         for i in range(10000):
             if i % 100 == 0:
                 mol, new = mtd(mol)
-                hil.write(new)
+                hil.put(new)
             mol = dyn(mol)
-            rec.write(mol)
-            stp = mol[fes.p.stp].item()
+            rec.put(mol)
+            stp = mol[fes.p.stp].tolist()
             tim = round(Decimal(timer.value()), 3)
-            eng = round(Decimal(mol[fes.p.eng_res].item()), 5)
+            eng = '[{}]'.format(
+                ' '.join([
+                    tostr(x) for x in mol[fes.p.eng_res][:, 0].tolist()]))
             timer.reset()
             print(f'{stp} {eng} {tim}')
+
+
+def tostr(x):
+    return f'{round(Decimal(x), 5)}'
 
 
 if __name__ == "__main__":

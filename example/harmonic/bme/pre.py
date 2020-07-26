@@ -1,3 +1,4 @@
+from pathlib import Path
 import math
 from typing import Dict
 from decimal import Decimal
@@ -36,14 +37,9 @@ def make_inp():
 
 
 def main():
-    pre_path = fes.rec.PathPair('pre')
-    if pre_path.is_file():
-        with fes.rec.open_torch(pre_path, 'rb') as f:
-            mol = f[-1]
-        mode = 'ab'
-    else:
-        mol = make_inp()
-        mode = 'wb'
+    pre_path = Path('pre')
+    mol = make_inp()
+    mode = 'wb'
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
     col = ColVar()
     res = fes.res.HarmonicRestraints(col,
@@ -54,12 +50,12 @@ def main():
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    dyn = fes.md.PQF(eng, adj, fes.md.FIRE(0.5, 5, 0.5, 1.1, 0.5, 0.5 * fs))
+    dyn = fes.md.PQF(eng, adj, fes.md.FIRE(0.5 * fs))
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(pre_path, mode) as rec:
+    with fes.rec.open_trj(pre_path, mode) as rec:
         for _ in range(100):
             mol = dyn(mol)
-            rec.write(mol)
+            rec.put(mol)
             tim = round(Decimal(timer.value()), 3)
             timer.reset()
             col_var = col(mol)
