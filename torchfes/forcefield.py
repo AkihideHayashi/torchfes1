@@ -75,8 +75,6 @@ class EvalEnergiesForces(nn.Module):
             retain_graph = create_graph
         if not retain_graph:
             detach_(out)
-        if p.fix in out:
-            out[p.frc].masked_fill_(out[p.fix], 0.0)
         return out
 
 

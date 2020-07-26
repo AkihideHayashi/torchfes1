@@ -1,3 +1,4 @@
+from pathlib import Path
 from decimal import Decimal
 import torch
 from ase.units import fs, kB
@@ -22,15 +23,20 @@ def make_inp():
     return inp
 
 
-def main():
-    trj_path = fes.rec.PathPair('md')
-    if trj_path.is_file():
-        with fes.rec.open_torch(trj_path, 'rb') as f:
+def make_inp_or_continue(path):
+    if path.is_file():
+        with fes.rec.open_torch(path, 'rb') as f:
             mol = f[-1]
         mode = 'ab'
     else:
         mol = make_inp()
         mode = 'wb'
+    return mol, mode
+
+
+def main():
+    trj_path = Path('md')
+    mol, mode = make_inp_or_continue(trj_path)
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
     eng = fes.ff.EvalEnergies(mdl)
     adj = fes.adj.SetAdjSftSpcVecSod(
@@ -39,10 +45,10 @@ def main():
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
     timer = ignite.handlers.Timer()
-    with fes.rec.open_torch(trj_path, mode) as rec:
+    with fes.rec.open_trj(trj_path, mode) as rec:
         for _ in range(10000):
             mol = dyn(mol)
-            rec.write(mol)
+            rec.put(mol)
             stp = mol[fes.p.stp].item()
             tim = round(Decimal(timer.value()), 3)
             timer.reset()

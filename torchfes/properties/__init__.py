@@ -5,7 +5,6 @@ from .opt import *
 from .bme import *
 from .mtd import *
 from .adj import *
-from .properties import *
 from .thermostat import *
 from .cases import atoms, batch, save_trj, metadynamics
 
@@ -23,7 +22,6 @@ default_values = {
     ent: False,
     mom: 0.0,
     chg: 0.0,
-    fix: False,
     mtd_cen: 0.0,
     mtd_hgt: 0.0,
     mtd_prc: 0.0,
