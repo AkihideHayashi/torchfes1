@@ -118,6 +118,27 @@ class PQF(nn.Module):
         return out
 
 
+class PQsF(nn.Module):
+    """Constrained Leap Frog FIRE."""
+
+    def __init__(self, eng: EvalEnergies, adj: nn.Module, fire: FIRE,
+                 col_var: nn.Module, tol_shk: float):
+        super().__init__()
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, False)
+        self.reset = Reset(self.evl)
+        self.fir = fire
+        self.shk = BMEShk(col_var, tol_shk)
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = self.reset(inp)
+        out = updt_mom(out, 1.0)
+        out = updt_pos(out, 1.0)
+        out = self.shk(out)
+        out = self.evl(out)
+        out = self.fir(out)
+        return out
+
+
 class PQTQ(nn.Module):
     """High precision NVT Leap Frog"""
 
