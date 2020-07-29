@@ -27,7 +27,8 @@ def sym_to_elm(symbols: Union[str, List, np.ndarray],
 
 def detach_(inp: Dict[str, Tensor]):
     for key in inp:
-        inp[key] = inp[key].clone().detach()
+        if key not in p.nodetach:
+            inp[key] = inp[key].clone().detach()
 
 
 def detach(inp: Dict[str, Tensor]):

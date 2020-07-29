@@ -6,7 +6,7 @@ from .bme import *
 from .mtd import *
 from .adj import *
 from .thermostat import *
-from .cases import atoms, batch, save_trj, metadynamics
+from .cases import atoms, batch, save_trj, metadynamics, nodetach
 
 
 default_values = {

@@ -47,6 +47,10 @@ def linear_interpolation(inp: Dict[str, Tensor], n: int):
     assert inp[p.pos].size(0) == 2
     mid = unbind(inp)
     out = {}
-    for key in inp:
+    for key in mid[0]:
         out[key] = _linear_interpolation(mid[0][key], mid[1][key], n)
+    for key in inp:
+        if key not in p.batch:
+            out[key] = inp[key]
+    out[p.ent] = out[p.elm] >= 0
     return out

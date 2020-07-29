@@ -28,7 +28,7 @@ def elm_to_sym(elm: np.array, order: np.array):
 
 
 def to_atoms(atoms: Dict[str, Tensor], order: List[str]):
-    arr = {key: val.numpy() for key, val in atoms.items()}
+    arr = {key: val.clone().detach().numpy() for key, val in atoms.items()}
     arr[p.sym] = np.array(order)[arr.pop(p.elm)]
     return _array_to_atoms(arr)
 
@@ -36,7 +36,7 @@ def to_atoms(atoms: Dict[str, Tensor], order: List[str]):
 def from_atoms(atoms: Atoms, order: List[str]):
     arr = _atoms_to_array(atoms)
     arr[p.elm] = sym_to_elm(arr.pop(p.sym), order)
-    return {key: torch.from_numpy(val) for key, val in arr.items()}
+    return {key: torch.tensor(val.tolist()) for key, val in arr.items()}
 
 
 def _array_to_atoms(atoms: Dict[str, np.ndarray]):

@@ -38,5 +38,7 @@ def open_trj(path: Union[str, Path], mode: str = 'rb', unbind: bool = False,
     recorder: Union[Type[TorchTrajectory], Type[UnbindTrajectory]]
     if mode in ('wb', 'ab'):
         return QueueProcess(_write, (path, unbind, digit))
-    if mode == 'rb':
+    elif mode == 'rb':
         return QueueProcess(_read_all, (path,))
+    else:
+        raise KeyError(mode)

@@ -122,9 +122,10 @@ class PQsF(nn.Module):
     """Constrained Leap Frog FIRE."""
 
     def __init__(self, eng: EvalEnergies, adj: nn.Module, fire: FIRE,
-                 col_var: nn.Module, tol_shk: float):
+                 col_var: nn.Module, tol_shk: float,
+                 mod: Optional[nn.Module] = None):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, False)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng, mod), col_var, False)
         self.reset = Reset(self.evl)
         self.fir = fire
         self.shk = BMEShk(col_var, tol_shk)

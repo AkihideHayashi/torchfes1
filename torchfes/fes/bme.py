@@ -11,7 +11,7 @@ def jacobian(fun: Tensor, pos: Tensor, create_graph: bool):
     for i in range(n):
         g = torch.zeros_like(fun)
         g[:, i] = 1.0
-        grd = grad(fun, pos, g, create_graph=create_graph)
+        grd = grad(fun, pos, g, create_graph=create_graph, retain_graph=True)
         jac.append(grd)
     return torch.stack(jac, 1)
 

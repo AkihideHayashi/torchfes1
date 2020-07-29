@@ -19,7 +19,7 @@ def _get_n_batch(mol: Dict[str, Tensor]) -> int:
     for key in mol:
         if n is None:
             n = mol[key].size(0)
-        assert key in batch
+        assert key in batch, key
         assert mol[key].size(0) in (1, n), key
     assert n is not None
     return n
@@ -44,8 +44,6 @@ def _mask_mtd_ind(mol: Dict[str, Tensor]):
     ret[p.mtd_hgt] = mol[p.mtd_hgt][mask]
     ret[p.mtd_cen] = mol[p.mtd_cen][mask]
     ret[p.mtd_prc] = mol[p.mtd_prc][mask]
-    if p.mtd_gam in mol:
-        ret[p.mtd_gam] = mol[p.mtd_gam][mask]
     return ret
 
 
@@ -76,7 +74,7 @@ def _get_keys(mol: List[Dict[str, Tensor]]):
     return keys
 
 
-def stack(mol: List[Dict[str, Tensor]]):
+def stack(mol: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
     keys = _get_keys(mol)
     tmp: Dict[str, List[Tensor]] = {}
     for key in keys:

@@ -14,12 +14,12 @@ class Energies(NamedTuple):
 
 
 def ensemble_energies_from_atomic(eng_atm_ens: Tensor):
-    assert eng_atm_ens.dim() == 3  # bch, ens, atm
-    eng_mol_ens = eng_atm_ens.sum(dim=2)
+    assert eng_atm_ens.dim() == 3  # bch, atm, ens
+    eng_mol_ens = eng_atm_ens.sum(dim=1)
     eng_mol = eng_mol_ens.mean(dim=1)
-    eng_atm = eng_atm_ens.mean(dim=1)
+    eng_atm = eng_atm_ens.mean(dim=2)
     eng_mol_std = eng_mol_ens.std(dim=1, unbiased=True)
-    eng_atm_std = eng_atm_ens.std(dim=1, unbiased=True)
+    eng_atm_std = eng_atm_ens.std(dim=2, unbiased=True)
     return Energies(
         eng_mol=eng_mol, eng_atm=eng_atm,
         eng_mol_std=eng_mol_std, eng_atm_std=eng_atm_std,
