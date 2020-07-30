@@ -17,6 +17,8 @@ def filter_save_trj(mol: Dict[str, Tensor]):
 def _get_n_batch(mol: Dict[str, Tensor]) -> int:
     n: Optional[int] = None
     for key in mol:
+        if key not in batch:
+            continue
         if n is None:
             n = mol[key].size(0)
         assert key in batch, key
@@ -55,6 +57,8 @@ def unbind(mol: Dict[str, Tensor]):
     n = _get_n_batch(mol)
     ret: List[Dict[str, Tensor]] = [{} for _ in range(n)]
     for key in mol:
+        if key not in batch:
+            continue
         if mol[key].size(0) == n:
             for i in range(n):
                 ret[i][key] = mol[key][i]

@@ -4,7 +4,6 @@ save_trj: Set[str] = set()
 metadynamics: Set[str] = set()
 batch: Set[str] = set()
 atoms: Set[str] = set()
-nodetach: Set[str] = set()
 
 
 def add(to, keys):

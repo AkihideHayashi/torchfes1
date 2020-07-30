@@ -30,6 +30,9 @@ def stack(tensors: List[Tensor], value: float, dim: int = 0):
     t0 = tensors[0]
     for tensor in tensors:
         assert t0.dim() == tensor.dim()
+    if t0.size() == ():
+        assert dim == 0
+        return torch.tensor(tensors)
     size: List[int] = []
     for i in range(t0.dim()):
         size.append(max([tensor.size(i) for tensor in tensors]))

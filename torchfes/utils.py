@@ -2,11 +2,21 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from torch import Tensor
+from torch import Tensor, nn
 
 import pointneighbor as pn
 
 from . import properties as p
+
+
+class Sequential(nn.ModuleList):
+    def __init__(self, *args):
+        super().__init__(args)
+
+    def forward(self, mol: Dict[str, Tensor]):
+        for mod in self:
+            mol = mod(mol)
+        return mol
 
 
 def sym_to_elm(symbols: Union[str, List, np.ndarray],
@@ -27,8 +37,7 @@ def sym_to_elm(symbols: Union[str, List, np.ndarray],
 
 def detach_(inp: Dict[str, Tensor]):
     for key in inp:
-        if key not in p.nodetach:
-            inp[key] = inp[key].clone().detach()
+        inp[key] = inp[key].clone().detach()
 
 
 def detach(inp: Dict[str, Tensor]):

@@ -1,7 +1,7 @@
 from typing import List
 import torch
 from torch import Tensor
-from .utils import vector_pos
+from .utils import _vector_pos
 from .. import properties as p
 from .derivative import jacobian, hessian
 
@@ -48,7 +48,7 @@ def _normalize(x: Tensor):
 def fixed_eig(adj, eng, con, mol):
     assert mol[p.pos].size(0) == 1
     mol = mol.copy()
-    q, pos = vector_pos(mol[p.pos])
+    q, pos = _vector_pos(mol[p.pos])
     mol[p.pos] = pos
     mol = adj(mol)
     mol = eng(mol)

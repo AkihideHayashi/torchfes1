@@ -1,4 +1,4 @@
-from .cases import add, batch, save_trj, nodetach
+from .cases import add, batch, save_trj
 
 
 bme_cen = 'blue_moon_center'
@@ -20,4 +20,4 @@ add([batch, save_trj], {
     res_cen
 })
 
-add([batch, nodetach], {bme_lmd_tmp, bme_ktg_tmp, bme_fix_tmp})
+add([batch], {bme_lmd_tmp, bme_ktg_tmp, bme_fix_tmp})
