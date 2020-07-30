@@ -57,7 +57,7 @@ class BMEJac(nn.Module):
 
     def forward(self, inp: Dict[str, Tensor]):
         out = requires_grad(inp, [p.pos])
-        con = self.col_var(out) - inp[p.bme_cen]
+        con = self.col_var(out) - inp[p.con_cen]
         if p.bme_lmd_tmp not in out:
             out[p.bme_lmd_tmp] = torch.zeros_like(con)
         jac = jacobian(con, out[p.pos], self.create_graph)
@@ -104,7 +104,7 @@ class BMEShk(nn.Module):
             frc = -(lmd[:, :, None, None] * jac_con).sum(1)
             out[p.pos] = pos + frc / mas * dtm * dtm
             out[p.mom] = mom + frc * dtm
-            con = self.col_var(out) - out[p.bme_cen]
+            con = self.col_var(out) - out[p.con_cen]
             if con.abs().max() < self.tol:
                 break
             jac_con_lmd = jacobian(con, lmd, False)
@@ -118,6 +118,7 @@ class BMEShk(nn.Module):
         if self.debug is not None:
             print(f'Shake converged after {i} steps.')
         out[p.bme_lmd_tmp] += lmd
+        out[p.bme_frc] += frc
         return out
 
 
@@ -160,6 +161,7 @@ class BMERtl(nn.Module):
         if self.debug is not None:
             print(f'Rattle converged after {i} steps.', file=self.debug)
         out[p.bme_lmd_tmp] += lmd
+        out[p.bme_frc] += frc
         return out
 
 

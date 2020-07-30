@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Set
 import torch
 from torch import Tensor
-from .torch import stack as _stack, cat as _cat
+from .torch import cat as _cat
 from .. import properties as p
 from ..properties import default_values, batch, save_trj, atoms
 
@@ -29,7 +29,7 @@ def _get_n_batch(mol: Dict[str, Tensor]) -> int:
 
 def _mask_ent(mol: Dict[str, Tensor]):
     ret: Dict[str, Tensor] = {}
-    ent = mol.pop(p.ent)
+    ent = mol[p.ent]
     for key in mol:
         if key in atoms:
             ret[key] = mol[key][ent]
@@ -53,6 +53,10 @@ def _mask(mol: Dict[str, Tensor]):
     return _mask_mtd_ind(_mask_ent(mol))
 
 
+def _unsqueeze(mol: Dict[str, Tensor]):
+    return {key: val.unsqueeze(0) for key, val in mol.items()}
+
+
 def unbind(mol: Dict[str, Tensor]):
     n = _get_n_batch(mol)
     ret: List[Dict[str, Tensor]] = [{} for _ in range(n)]
@@ -67,7 +71,7 @@ def unbind(mol: Dict[str, Tensor]):
                 ret[i][key] = mol[key].squeeze(0)
         else:
             raise RuntimeError()
-    return [_mask(m) for m in ret]
+    return [_unsqueeze(_mask(m)) for m in ret]
 
 
 def _get_keys(mol: List[Dict[str, Tensor]]):
@@ -78,26 +82,11 @@ def _get_keys(mol: List[Dict[str, Tensor]]):
     return keys
 
 
-def stack(mol: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
-    keys = _get_keys(mol)
-    tmp: Dict[str, List[Tensor]] = {}
-    for key in keys:
-        tmp[key] = []
-        for m in mol:
-            tmp[key].append(m[key])
-    ret: Dict[str, Tensor] = {}
-    for key in tmp.keys():
-        if key in atoms:
-            ret[key] = _stack(tmp[key], default_values[key], dim=0)
-        else:
-            ret[key] = torch.stack(tmp[key], dim=0)
-    ret[p.ent] = ret[p.elm] >= 0
-    return ret
-
-
 def cat(mol: List[Dict[str, Tensor]]):
     keys = _get_keys(mol)
     tmp: Dict[str, List[Tensor]] = {}
+    for key in keys:
+        assert key in batch
     for key in keys:
         tmp[key] = []
         for m in mol:

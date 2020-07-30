@@ -1,7 +1,7 @@
 from typing import List
 import torch
 from torch import Tensor
-from .utils import _vector_pos
+from .utils import _vector_pos, generalize_pos_lag
 from .. import properties as p
 from .derivative import jacobian, hessian
 
@@ -48,14 +48,16 @@ def _normalize(x: Tensor):
 def fixed_eig(adj, eng, con, mol):
     assert mol[p.pos].size(0) == 1
     mol = mol.copy()
-    q, pos = _vector_pos(mol[p.pos])
-    mol[p.pos] = pos
+    mol = generalize_pos_lag(mol)
+    # q, pos = _vector_pos(mol[p.pos])
+    # mol[p.pos] = pos
     mol = adj(mol)
     mol = eng(mol)
     col = con(mol)
+    q = mol[p.gen_pos]
     a = jacobian(col, q)[0]
     h = hessian(mol[p.eng], q)[0]
     e, c = split_hessian(h, a)
-    _, n_atm, n_dim = pos.size()
+    _, n_atm, n_dim = mol[p.pos].size()
     c = c.t().view([-1, n_atm, n_dim])
     return e, c

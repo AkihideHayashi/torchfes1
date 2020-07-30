@@ -37,6 +37,9 @@ def hessian(f: Tensor, x: Tensor, g: Optional[Tensor] = None):
 
 
 def jacobian(f: Tensor, x: Tensor):
+    if f.size(1) == 0:
+        return torch.zeros([f.size(0), f.size(1), x.size(1)],
+                           device=x.device, dtype=x.dtype)
     js = []
     bch, out = f.size()
     eye = torch.eye(out, device=x.device, dtype=x.dtype)[None, :, :].expand(

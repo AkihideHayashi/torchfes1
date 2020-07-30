@@ -18,14 +18,17 @@ def _vector_pos_lag(pos: Tensor, lag: Tensor):
     return x, pos_, lag_
 
 
-def vector_pos_lag(inp: Dict[str, Tensor]):
+def generalize_pos_lag(inp: Dict[str, Tensor]):
     out = inp.copy()
     x, out[p.pos], out[p.con_lag] = _vector_pos_lag(inp[p.pos], inp[p.con_lag])
-    return x, out
+    out[p.gen_pos] = x
+    return out
 
 
-def split_pos_frc_lag(x: Tensor, g: Tensor, inp: Dict[str, Tensor]):
+def cartesian_pos_frc_lag(inp: Dict[str, Tensor]):
     out = inp.copy()
+    x = inp[p.gen_pos]
+    g = inp[p.gen_grd]
     out[p.pos], out[p.con_lag] = _split_pos_lag(x, inp[p.pos], inp[p.con_lag])
     out[p.frc], _ = _split_pos_lag(-g, inp[p.pos], inp[p.con_lag])
     return out
@@ -36,13 +39,3 @@ def _split_pos_lag(x: Tensor, pos: Tensor, lag: Tensor):
     lag_ = x[:, :n_lag]
     pos_ = x[:, n_lag:].view_as(pos)
     return pos_, lag_
-
-
-def limit_step_size(stp: Tensor, siz: float):
-    stp_siz = stp.norm(p=2, dim=1)[:, None].expand_as(stp)
-    stp = torch.where(
-        stp_siz > siz,
-        stp / stp_siz * siz,
-        stp
-    )
-    return stp

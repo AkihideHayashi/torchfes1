@@ -1,10 +1,9 @@
-from typing import Dict
+from typing import Dict, List
 
 import torch
 from torch import Tensor
 
 from .. import properties as p
-from ..data.mol import unbind
 
 
 def inter_image_vec(pos: Tensor) -> Tensor:
@@ -33,24 +32,24 @@ def spring_energy(eng_bnd: Tensor):
 def _linear_interpolation(ini, fin, n):
     if ini.dtype == torch.bool:
         assert (fin == ini).all()
-        size = [n] + list(ini.size())
-        return ini[None].expand(size)
+        size = list(ini.size())
+        size[0] = n
+        return ini.expand(size)
     if ini.dtype == torch.long:
         assert (fin == ini).all()
-        size = [n] + list(ini.size())
-        return ini[None].expand(size)
+        size = list(ini.size())
+        size[0] = n
+        return ini.expand(size)
     n = n - 1
-    return torch.stack([(ini * (n - i) + fin * i) / n for i in range(n + 1)])
+    return torch.cat([(ini * (n - i) + fin * i) / n for i in range(n + 1)])
 
 
-def linear_interpolation(inp: Dict[str, Tensor], n: int):
-    assert inp[p.pos].size(0) == 2
-    mid = unbind(inp)
+def linear_interpolation(mid: List[Dict[str, Tensor]], n: int):
     out = {}
     for key in mid[0]:
         out[key] = _linear_interpolation(mid[0][key], mid[1][key], n)
-    for key in inp:
+    for key in mid[0]:
         if key not in p.batch:
-            out[key] = inp[key]
+            raise KeyError(key)
     out[p.ent] = out[p.elm] >= 0
     return out

@@ -132,6 +132,7 @@ class PQsF(nn.Module):
 
     def forward(self, inp: Dict[str, Tensor]):
         out = self.reset(inp)
+        out[p.bme_frc] = torch.zeros_like(out[p.frc])
         out = updt_mom(out, 1.0)
         out = updt_pos(out, 1.0)
         out = self.shk(out)

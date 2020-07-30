@@ -25,6 +25,7 @@ default_values = {
     mtd_cen: 0.0,
     mtd_hgt: 0.0,
     mtd_prc: 0.0,
+    bme_frc: 0.0,
 }
 
 for key in atoms:
