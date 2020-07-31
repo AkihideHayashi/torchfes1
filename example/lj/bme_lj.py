@@ -10,7 +10,7 @@ import pointneighbor as pn
 from pnpot.classical import LennardJones
 from torchfes.forcefield import EvalEnergies
 from torchfes.utils import sym_to_elm
-from torchfes.inp import init_inp, add_nvt, add_global_nose_hoover_chain
+from torchfes.inp import init_mol, add_nvt, add_global_nose_hoover_chain
 import torchfes as fes
 from torchfes import md
 from torchfes import properties as p
@@ -68,7 +68,7 @@ def make_inp(timestep, print_vel=False):
     ]]) * Ang
     elm = torch.tensor(sym_to_elm(sym, order))
     mas = torch.tensor([40.0])[elm]
-    inp = init_inp(cel, pbc, elm, pos, mas)
+    inp = init_mol(cel, pbc, elm, pos, mas)
     add_nvt(inp, timestep * fs, 85.0 * kB)
     add_global_nose_hoover_chain(inp, (1000.0 * fs))
 

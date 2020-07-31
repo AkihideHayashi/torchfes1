@@ -30,7 +30,7 @@ def make_inp():
     pbc = torch.zeros([n_bch, n_dim], dtype=torch.bool)
     elm = torch.ones([n_bch, n_atm])
     mas = torch.ones([n_bch, n_atm])
-    inp = fes.inp.init_inp(cel, pbc, elm, pos, mas)
+    inp = fes.inp.init_mol(cel, pbc, elm, pos, mas)
     fes.inp.add_nvt(inp, 1.0 * fs, 300 * kB)
     fes.inp.add_global_langevin(inp, 100.0 * fs)
     return inp

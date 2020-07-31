@@ -70,5 +70,8 @@ class GaussianPotential(nn.Module):
         self.register_buffer('pbc', col.pbc)
 
     def forward(self, inp: Dict[str, Tensor]):
-        col = self.col(inp)
-        return gaussian(inp, self.pbc, col)[:, None]
+        if p.mtd_cen in inp:
+            col = self.col(inp)
+            return gaussian(inp, self.pbc, col)[:, None]
+        else:
+            return torch.zeros_like(inp[p.eng_mol])[:, None]

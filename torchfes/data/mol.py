@@ -70,15 +70,14 @@ def unbind(mol: Dict[str, Tensor]):
             for i in range(n):
                 ret[i][key] = mol[key].squeeze(0)
         else:
-            raise RuntimeError()
+            raise RuntimeError(key)
     return [_unsqueeze(_mask(m)) for m in ret]
 
 
 def _get_keys(mol: List[Dict[str, Tensor]]):
     keys: Set[str] = set(mol[0].keys())
     for m in mol:
-        if keys != set(m.keys()):
-            raise RuntimeError()
+        keys.update(set(m.keys()))
     return keys
 
 
@@ -97,5 +96,13 @@ def cat(mol: List[Dict[str, Tensor]]):
             ret[key] = _cat(tmp[key], default_values[key], dim=0)
         else:
             ret[key] = torch.cat(tmp[key], dim=0)
-    ret[p.ent] = ret[p.elm] >= 0
+    assert (ret[p.ent] == (ret[p.elm] >= 0)).all()
+    return ret
+
+
+def masked_select(mol: Dict[str, Tensor], mask: Tensor):
+    mol = filter_batch(mol)
+    ret = {}
+    for key in mol:
+        ret[key] = mol[key][mask]
     return ret

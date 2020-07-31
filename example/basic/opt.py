@@ -7,7 +7,7 @@ import pointneighbor as pn
 from pnpot.classical.quad import Quadratic
 from torchfes import properties as p
 from torchfes.forcefield import EvalEnergiesForcesGeneral, EvalEnergies
-from torchfes.inp import init_inp, add_nvt
+from torchfes.inp import init_mol, add_nvt
 from torchfes import opt as fopt
 import torchfes as fes
 from torchfes.general import cartesian_coordinate, CartesianCoordinate
@@ -18,7 +18,7 @@ def make_inp():
     pbc = torch.tensor([False, False, False])[None, :]
     pos = torch.tensor([[[0.0, 1.0, 1.0]], [[1.0, 1.0, 1.0]]])
     elm = torch.tensor([0])[None, :]
-    inp = init_inp(cel, pbc, elm, pos, mas=torch.tensor([1.0])[elm])
+    inp = init_mol(cel, pbc, elm, pos, mas=torch.tensor([1.0])[elm])
     add_nvt(inp, dtm=torch.tensor([0.1]), kbt=torch.tensor([0.0]))
     for key in inp:
         size = list(inp[key].size())

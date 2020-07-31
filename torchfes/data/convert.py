@@ -3,6 +3,8 @@ from ase import Atoms
 import numpy as np
 import torch
 from torch import Tensor
+from .mol import unbind
+from ..mol import add_basic
 from .. import properties as p
 
 
@@ -22,23 +24,36 @@ def sym_to_elm(symbols: Union[str, List, np.ndarray],
         return np.array([sym_to_elm(s, order) for s in symbols])
 
 
-def elm_to_sym(elm: np.array, order: np.array):
+def elm_to_sym(elm: np.array, sym: np.array):
     ent = elm >= 0
-    return np.where(ent, order[elm], '')
+    return np.where(ent, sym[elm], '')
 
 
-def to_atoms(atoms: Dict[str, Tensor], order: List[str]):
+def to_atoms(mol: Dict[str, Tensor], sym: List[str]):
+    assert mol[p.pos].size(0) == 1
     arr = {key: val.clone().detach().squeeze(0).numpy()
-           for key, val in atoms.items()}
-    arr[p.sym] = np.array(order)[arr.pop(p.elm)]
+           for key, val in mol.items()}
+    arr[p.sym] = np.array(sym)[arr.pop(p.elm)]
     return _array_to_atoms(arr)
 
 
-def from_atoms(atoms: Atoms, order: List[str]):
+def to_atoms_list(mol: Dict[str, Tensor], sym: List[str]):
+    return [to_atoms(mol, sym) for mol in unbind(mol)]
+
+
+def from_atoms(atoms: Atoms, sym: List[str]):
     arr = _atoms_to_array(atoms)
-    arr[p.elm] = sym_to_elm(arr.pop(p.sym), order)
-    return {key: torch.tensor(val.tolist()).unsqueeze(0)
-            for key, val in arr.items()}
+    arr[p.elm] = sym_to_elm(arr.pop(p.sym), sym)
+    tmp = {
+        key: torch.tensor(val.tolist()).unsqueeze(0)
+        for key, val in arr.items()
+    }
+    ret = add_basic(tmp)
+    return ret
+
+
+def from_atoms_list(atoms_list: List[Atoms], sym: List[str]):
+    return [from_atoms(atoms, sym) for atoms in atoms_list]
 
 
 def _array_to_atoms(atoms: Dict[str, np.ndarray]):

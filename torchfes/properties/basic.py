@@ -8,6 +8,7 @@ elm = 'elements'
 sym = 'symbols'
 ent = 'entities'
 num = 'number'
+num_sqt = 'number_sqrt'
 pos = 'positions'
 eng = 'total_energies'
 eng_mol = 'molecular_energies'
@@ -41,7 +42,8 @@ add([batch, save_trj, atoms], {
 })
 
 add([batch, save_trj], {
-    idt, cel, pbc, num, eng, eng_mol, eng_mol_std, eng_mol_ens, eng_res,
+    idt, cel, pbc, num, num_sqt,
+    eng, eng_mol, eng_mol_std, eng_mol_ens, eng_res,
     prs, prs_mol, prs_res, sts, sts_mol, sts_res, kbt, tim, stp, dtm
 })
 
