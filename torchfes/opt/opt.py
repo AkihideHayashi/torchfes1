@@ -9,7 +9,7 @@ from ..utils import detach
 from .quasinewton import bfgs_hes
 
 
-def reset_constraints(inp: Dict[str, Tensor]):
+def set_constraints(inp: Dict[str, Tensor]):
     out = inp.copy()
     if p.con_lag not in inp:
         out[p.con_lag] = torch.zeros_like(out[p.con_cen])
@@ -22,7 +22,7 @@ class Optimizer(nn.Module):
         self.vec = vec
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = reset_constraints(inp)
+        out = set_constraints(inp)
         out = generalize_pos_lag(out)
         out = self.vec(out)
         out[p.gen_pos] = out[p.gen_pos] + out[p.gen_stp]
