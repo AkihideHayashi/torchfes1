@@ -1,4 +1,4 @@
-from .cases import add, batch, save_trj
+from .cases import add, batch, saves
 
 
 ads_frq = 'andersen_frequency'
@@ -10,6 +10,6 @@ mom_nhc = 'nose_hoover_chain_momenta'
 mas_nhc = 'nose_hoover_chain_masses'
 con_nhc = 'nose_hoover_chain_constants'
 
-add([batch, save_trj], {
+add([batch, saves], {
     ads_frq, gam_lng, omg_nhc, pos_nhc, mom_nhc, mas_nhc, con_nhc
 })

@@ -1,108 +1,193 @@
 from typing import Dict, List, Optional, Set
 import torch
-from torch import Tensor
-from .torch import cat as _cat
+from torch import Tensor, nn
+from .torch import pad as _pad
 from .. import properties as p
-from ..properties import default_values, batch, save_trj, atoms
+from ..properties import default_values, batch, atoms, metad
 
 
-def filter_batch(mol: Dict[str, Tensor]):
-    return {key: val for key, val in mol.items() if key in batch}
+DT = Dict[str, Tensor]
+DLT = Dict[str, List[Tensor]]
+DLOT = Dict[str, List[Optional[Tensor]]]
+LDT = List[Dict[str, Tensor]]
 
 
-def filter_save_trj(mol: Dict[str, Tensor]):
-    return {key: val for key, val in mol.items() if key in save_trj}
+def dt_to_dlt(dt: DT):
+    new: DLT = {}
+    for key in dt:
+        assert key in batch
+        new[key] = list(dt[key].unsqueeze(0).unbind(1))
+    return new
 
 
-def _get_n_batch(mol: Dict[str, Tensor]) -> int:
-    n: Optional[int] = None
-    for key in mol:
-        if key not in batch:
-            continue
-        if n is None:
-            n = mol[key].size(0)
-        assert key in batch, key
-        assert mol[key].size(0) in (1, n), key
-    assert n is not None
+def _len_dlt(dlt: DLT):
+    n = 0
+    for key, val in dlt.items():
+        if n == 0:
+            n = len(val)
+        else:
+            assert n == len(val), key
     return n
 
 
-def _mask_ent(mol: Dict[str, Tensor]):
+def dlt_to_ldt(dlt: DLT):
+    n = _len_dlt(dlt)
+    new: LDT = [{} for _ in range(n)]
+    for key in dlt:
+        for ne, mo in zip(new, dlt[key]):
+            ne[key] = mo
+    return new
+
+
+def _keys_ldt(ldt: LDT):
+    keys: Set[str] = set()
+    for mo in ldt:
+        keys.update(set(mo.keys()))
+    return keys
+
+
+def ldt_to_dlot(ldt: LDT):
+    keys = _keys_ldt(ldt)
+    for key in keys:
+        assert key in batch
+    new: DLOT = {key: [] for key in keys}
+    for mo in ldt:
+        for key in keys:
+            if key in mo:
+                new[key].append(mo[key])
+            else:
+                new[key].append(None)
+    return new
+
+
+def dlot_to_dlt(dlot: DLOT) -> DLT:
+    dlt: DLT = {}
+    for key, lot in dlot.items():
+        dlt[key] = []
+        for ot in lot:
+            if ot is None:
+                raise RuntimeError(key)
+            else:
+                dlt[key].append(ot)
+    return dlt
+
+
+def dlt_to_dt(dlt: DLT):
+    dt: DT = {}
+    for key, lt in dlt.items():
+        dt[key] = torch.cat(lt, dim=0)
+    return dt
+
+
+def filter_case(mol: Dict[str, Tensor], case: Set[str]):
+    return {key: val for key, val in mol.items() if key in case}
+
+
+def pak_atm(mol: Dict[str, Tensor]):
     ret: Dict[str, Tensor] = {}
-    ent = mol[p.ent]
+    ent = mol[p.ent].squeeze(0)
+    assert ent.dim() == 1
     for key in mol:
+        assert key in batch
+        assert mol[key].size(0) == 1
         if key in atoms:
-            ret[key] = mol[key][ent]
+            ret[key] = mol[key][:, ent]
         else:
             ret[key] = mol[key]
     return ret
 
 
-def _mask_mtd_ind(mol: Dict[str, Tensor]):
+def pak_mtd(mol: Dict[str, Tensor]):
     if p.mtd_hgt not in mol:
         return mol
-    mask = mol[p.mtd_hgt] != 0
+    assert mol[p.mtd_hgt].dim() == 2
+    assert mol[p.mtd_cen].dim() == 3
+    assert mol[p.mtd_prc].dim() == 3
+    assert mol[p.mtd_hgt].size(0) == 1
+    mask = mol[p.mtd_hgt].squeeze(0) != 0
     ret = mol.copy()
-    ret[p.mtd_hgt] = mol[p.mtd_hgt][mask]
-    ret[p.mtd_cen] = mol[p.mtd_cen][mask]
-    ret[p.mtd_prc] = mol[p.mtd_prc][mask]
+    ret[p.mtd_hgt] = mol[p.mtd_hgt][:, mask]
+    ret[p.mtd_cen] = mol[p.mtd_cen][:, mask, :]
+    ret[p.mtd_prc] = mol[p.mtd_prc][:, mask, :]
     return ret
 
 
-def _mask(mol: Dict[str, Tensor]):
-    return _mask_mtd_ind(_mask_ent(mol))
+class PakMtd(nn.Module):
+    def forward(self, dt: DT):
+        return pak_mtd(dt)
 
 
-def _unsqueeze(mol: Dict[str, Tensor]):
-    return {key: val.unsqueeze(0) for key, val in mol.items()}
+class PakAtm(nn.Module):
+    def forward(self, dt: DT):
+        return pak_atm(dt)
 
 
-def unbind(mol: Dict[str, Tensor]):
-    n = _get_n_batch(mol)
-    ret: List[Dict[str, Tensor]] = [{} for _ in range(n)]
-    for key in mol:
-        if key not in batch:
-            continue
-        if mol[key].size(0) == n:
-            for i in range(n):
-                ret[i][key] = mol[key][i]
-        elif mol[key].size(0) == 1:
-            for i in range(n):
-                ret[i][key] = mol[key].squeeze(0)
-        else:
-            raise RuntimeError(key)
-    return [_unsqueeze(_mask(m)) for m in ret]
-
-
-def _get_keys(mol: List[Dict[str, Tensor]]):
-    keys: Set[str] = set(mol[0].keys())
-    for m in mol:
-        keys.update(set(m.keys()))
-    return keys
-
-
-def cat(mol: List[Dict[str, Tensor]]):
-    keys = _get_keys(mol)
-    tmp: Dict[str, List[Tensor]] = {}
-    for key in keys:
-        assert key in batch
-    for key in keys:
-        tmp[key] = []
-        for m in mol:
-            tmp[key].append(m[key])
-    ret: Dict[str, Tensor] = {}
-    for key in tmp.keys():
+def pad_atm(dlt: DLT):
+    new: DLT = {}
+    for key, lt in dlt.items():
         if key in atoms:
-            ret[key] = _cat(tmp[key], default_values[key], dim=0)
+            new[key] = _pad(lt, default_values[key], dim=0)
         else:
-            ret[key] = torch.cat(tmp[key], dim=0)
-    assert (ret[p.ent] == (ret[p.elm] >= 0)).all()
-    return ret
+            new[key] = lt
+    return new
 
 
-def masked_select(mol: Dict[str, Tensor], mask: Tensor):
-    mol = filter_batch(mol)
-    ret = {}
-    for key in mol:
-        ret[key] = mol[key][mask]
-    return ret
+def pad_mtd(dlt: DLT):
+    new: DLT = {}
+    for key, lt in dlt.items():
+        if key in metad:
+            new[key] = _pad(lt, default_values[key], dim=0)
+        else:
+            new[key] = lt
+    return new
+
+
+class PadAtm(nn.Module):
+    def forward(self, dlt: DLT):
+        return pad_atm(dlt)
+
+
+class PadMtd(nn.Module):
+    def forward(self, dlt: DLT):
+        return pad_mtd(dlt)
+
+
+class Cat(nn.Module):
+    def __init__(self, preprocesses: List[nn.Module]):
+        super().__init__()
+        self.pp = nn.ModuleList(preprocesses)
+
+    def forward(self, ldt: LDT):
+        dlot = ldt_to_dlot(ldt)
+        dlt = dlot_to_dlt(dlot)
+        for pp in self.pp:
+            dlt = pp(dlt)
+        dt = dlt_to_dt(dlt)
+        return dt
+
+
+class Unbind(nn.Module):
+    def __init__(self, postprecesses: List[nn.Module]):
+        super().__init__()
+        self.pp = nn.ModuleList(postprecesses)
+
+    def forward(self, dt: DT):
+        dt = filter_case(dt, atoms)
+        dlt = dt_to_dlt(dt)
+        ldt = dlt_to_ldt(dlt)
+        new = []
+        for dt in ldt:
+            for pp in self.pp:
+                dt = pp(dt)
+            new.append(pp(dt))
+        return new
+
+
+def masked_select(mol: List[Dict[str, Tensor]], mask: Tensor):
+    assert len(mol) == mask.size(0)
+    assert mask.dim() == 1
+    return [m for m, s in zip(mol, mask.tolist()) if s]
+
+
+unbind = Unbind([PakAtm(), PakMtd()])
+cat = Cat([PadAtm(), PadMtd()])

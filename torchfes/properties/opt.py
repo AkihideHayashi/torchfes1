@@ -1,4 +1,4 @@
-from .cases import add, batch, save_trj
+from .cases import add, batch, saves
 
 fir_cnt = 'fire_count'
 fir_alp = 'fire_a'
@@ -16,5 +16,5 @@ con_cen = 'constraint_center'
 hes = 'hessian'
 hes_inv = 'hessian_inverse'
 
-add([save_trj, batch], {fir_cnt, fir_alp, con_lag, con_cen, con_aug})
+add([saves, batch], {fir_cnt, fir_alp, con_lag, con_cen, con_aug})
 add([batch], {hes, hes_inv})

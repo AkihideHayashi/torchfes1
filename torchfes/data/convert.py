@@ -3,9 +3,11 @@ from ase import Atoms
 import numpy as np
 import torch
 from torch import Tensor
-from .mol import unbind
+from .mol import Unbind, PakAtm
 from ..mol import add_basic
 from .. import properties as p
+
+_unbind = Unbind([PakAtm()])
 
 
 def sym_to_elm(symbols: Union[str, List, np.ndarray],
@@ -38,7 +40,7 @@ def to_atoms(mol: Dict[str, Tensor], sym: List[str]):
 
 
 def to_atoms_list(mol: Dict[str, Tensor], sym: List[str]):
-    return [to_atoms(mol, sym) for mol in unbind(mol)]
+    return [to_atoms(mol, sym) for mol in _unbind(mol)]
 
 
 def from_atoms(atoms: Atoms, sym: List[str]):

@@ -3,16 +3,17 @@ from ase import Atoms
 import torch
 from torch import Tensor
 from .convert import from_atoms
-from .mol import cat
+from .mol import Cat, PadAtm
 
 
 class ToDictTensor:
     def __init__(self, symbols: List[str], default_precision=True):
         self.symbols = symbols
         self.default_precision = default_precision
+        self.cat = Cat([PadAtm()])
 
     def __call__(self, datas):
-        return cat([self._to_dict_tensor(data) for data in datas])
+        return self.cat([self._to_dict_tensor(data) for data in datas])
 
     def _to_dict_tensor(self, data):
         if isinstance(data, Atoms):

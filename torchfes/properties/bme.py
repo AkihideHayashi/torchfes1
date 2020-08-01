@@ -1,4 +1,4 @@
-from .cases import add, batch, save_trj, atoms
+from .cases import add, batch, saves, atoms
 
 
 bme_lmd = 'blue_moon_lambda'
@@ -14,8 +14,8 @@ bme_frc = 'blue_moon_forces'
 
 res_cen = 'restrained_purpose_sigma_0'
 
-add([batch, save_trj, atoms], {bme_frc})
-add([batch, save_trj], {
+add([batch, saves, atoms], {bme_frc})
+add([batch, saves], {
     bme_lmd, bme_jac_con_pos, bme_ktg, bme_mmt, bme_mmt_det, bme_fix, res_cen
 })
 

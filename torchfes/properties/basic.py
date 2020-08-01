@@ -1,4 +1,4 @@
-from .cases import add, batch, atoms, save_trj
+from .cases import add, batch, atoms, saves
 
 idt = 'identity_number'
 rst = 'should_reset'
@@ -36,12 +36,12 @@ stp = 'steps'
 dtm = 'delta_times'
 chg = 'charge'
 
-add([batch, save_trj, atoms], {
+add([batch, saves, atoms], {
     elm, ent, pos, eng_atm, eng_atm_std, eng_atm_ens, frc, frc_mol, frc_res,
     mom, mas, chg
 })
 
-add([batch, save_trj], {
+add([batch, saves], {
     idt, cel, pbc, num, num_sqt,
     eng, eng_mol, eng_mol_std, eng_mol_ens, eng_res,
     prs, prs_mol, prs_res, sts, sts_mol, sts_res, kbt, tim, stp, dtm

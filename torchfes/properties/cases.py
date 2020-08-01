@@ -1,7 +1,7 @@
 from typing import Set
 
-save_trj: Set[str] = set()
-metadynamics: Set[str] = set()
+saves: Set[str] = set()
+metad: Set[str] = set()
 batch: Set[str] = set()
 atoms: Set[str] = set()
 
