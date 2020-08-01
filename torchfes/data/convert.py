@@ -74,7 +74,7 @@ def _array_to_atoms(atoms: Dict[str, np.ndarray]):
     ret = Atoms(symbols=sym, positions=pos, cell=cel, pbc=pbc,
                 masses=mas, momenta=mom)
     if p.idt in atoms:
-        ret.info[p.idt] = atoms[p.idt]
+        ret.info[p.idt] = int(atoms[p.idt])
     return ret
 
 
