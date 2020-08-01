@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Set
 import torch
 from torch import Tensor, nn
-from .torch import pad as _pad
+from .torch import pad as _pad, size_max
 from .. import properties as p
 from ..properties import default_values, batch, atoms, metad
 
@@ -152,13 +152,46 @@ class PadMtd(nn.Module):
         return pad_mtd(dlt)
 
 
+class FilMtd(nn.Module):
+    def forward(self, dlot: DLOT):
+        if not dlot:
+            return dlot
+        tmp = dlot[p.pos][0]
+        assert tmp is not None
+        device = tmp.device
+        new: DLOT = {}
+        for key, lot in dlot.items():
+            if key in metad:
+                lt: List[Tensor] = []
+                for ot_ in lot:
+                    if ot_ is not None:
+                        lt.append(ot_)
+                size = size_max(lt)
+                n = []
+                for ot in lot:
+                    if ot is None:
+                        _tmp: Optional[Tensor] = torch.ones(
+                            size, device=device) * default_values[key]
+                        n.append(_tmp)
+                    else:
+                        n.append(ot)
+                new[key] = n
+            else:
+                new[key] = lot
+        return new
+
+
 class Cat(nn.Module):
-    def __init__(self, preprocesses: List[nn.Module]):
+    def __init__(self, prepreprocesses: List[nn.Module],
+                 preprocesses: List[nn.Module]):
         super().__init__()
+        self.ppp = nn.ModuleList(prepreprocesses)
         self.pp = nn.ModuleList(preprocesses)
 
     def forward(self, ldt: LDT):
         dlot = ldt_to_dlot(ldt)
+        for ppp in self.ppp:
+            dlot = ppp(dlot)
         dlt = dlot_to_dlt(dlot)
         for pp in self.pp:
             dlt = pp(dlt)
@@ -172,7 +205,7 @@ class Unbind(nn.Module):
         self.pp = nn.ModuleList(postprecesses)
 
     def forward(self, dt: DT):
-        dt = filter_case(dt, atoms)
+        dt = filter_case(dt, batch)
         dlt = dt_to_dlt(dt)
         ldt = dlt_to_ldt(dlt)
         new = []
@@ -190,4 +223,4 @@ def masked_select(mol: List[Dict[str, Tensor]], mask: Tensor):
 
 
 unbind = Unbind([PakAtm(), PakMtd()])
-cat = Cat([PadAtm(), PadMtd()])
+cat = Cat([FilMtd()], [PadAtm(), PadMtd()])

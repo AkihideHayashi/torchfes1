@@ -39,8 +39,8 @@ def to_atoms(mol: Dict[str, Tensor], sym: List[str]):
     return _array_to_atoms(arr)
 
 
-def to_atoms_list(mol: Dict[str, Tensor], sym: List[str]):
-    return [to_atoms(mol, sym) for mol in _unbind(mol)]
+def to_atoms_list(mol: List[Dict[str, Tensor]], sym: List[str]):
+    return [to_atoms(m, sym) for m in mol]
 
 
 def from_atoms(atoms: Atoms, sym: List[str]):

@@ -58,8 +58,7 @@ class Reset(nn.Module):
         if p.rst not in inp:
             inp[p.rst] = inp[p.dtm] == inp[p.dtm]
         if inp[p.rst].any():
-            out = updt_tim(inp, -1.0)
-            out = self.evl(out)
+            out = self.evl(inp)
             out[p.rst] = torch.zeros_like(out[p.rst])
             return out
         else:
