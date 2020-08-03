@@ -65,14 +65,21 @@ class BMEJac(nn.Module):
 
 
 class BMEKTGFix(nn.Module):
+    msk: Tensor
+
+    def __init__(self, msk: Tensor):
+        super().__init__()
+        self.register_buffer('msk', msk)
 
     def forward(self, inp: Dict[str, Tensor]):
+        msk = self.msk
         out = inp.copy()
-        mmt = bme_mmt(out[p.mas], out[p.col_jac])
+        col_jac = out[p.col_jac][:, msk, :, :]
+        mmt = bme_mmt(out[p.mas], col_jac)
         mmt_det = mmt.det()
         fix = fixman(mmt_det)
         ktg = bme_ktg(out[p.pos], out[p.mas], out[p.kbt],
-                      out[p.col_jac], mmt, mmt_det)
+                      col_jac, mmt, mmt_det)
         out = inp.copy()
         out[p.bme_ktg_tmp] = ktg.detach()
         out[p.bme_fix_tmp] = fix.detach()
@@ -80,14 +87,17 @@ class BMEKTGFix(nn.Module):
 
 
 class BMEShk(nn.Module):
-    def __init__(self, col_var: nn.Module, tol: float, debug=None):
+    def __init__(self, col_var: nn.Module, msk: Tensor,
+                 tol: float, debug=None):
         super().__init__()
+        self.msk = msk
         self.col_var = col_var
         self.tol = tol
         self.debug = debug
 
     def forward(self, inp: Dict[str, Tensor]):
-        jac_con = inp[p.col_jac]
+        msk = self.msk
+        jac_con = inp[p.col_jac][:, msk, :, :]
         pos = inp[p.pos].clone()
         mom = inp[p.mom].clone()
         out = inp.copy()
@@ -97,11 +107,11 @@ class BMEShk(nn.Module):
         i = 0
         while True:
             lmd.requires_grad_(True)
-            frc = -(lmd[:, :, None, None] * jac_con).sum(1)
+            frc = -(lmd[:, msk, None, None] * jac_con).sum(1)
             out[p.pos] = pos + frc / mas * dtm * dtm
             out[p.mom] = mom + frc * dtm
             out = self.col_var(out)
-            con = out[p.col_var] - out[p.col_cen]
+            con = (out[p.col_var] - out[p.col_cen])[:, msk]
             if con.abs().max() < self.tol:
                 break
             jac_con_lmd = jacobian(con, lmd, False)
@@ -160,11 +170,12 @@ class BMERtl(nn.Module):
         return out
 
 
-def bme_det_lmd(inp: Dict[str, Tensor]):
+def bme_det_lmd(inp: Dict[str, Tensor], msk_bme: Tensor):
     """Determine blue moon lambda."""
     out = inp.copy()
     if p.bme_mul_tmp in out:
         out[p.col_mul] = out[p.bme_mul_tmp]
+        out[p.bme_mul] = out[p.col_mul][:, msk_bme]
         out[p.bme_mul_tmp] = torch.zeros_like(out[p.bme_mul_tmp])
     if p.bme_fix_tmp in out:
         out[p.bme_fix] = out[p.bme_fix_tmp]

@@ -12,20 +12,21 @@ import pointneighbor as pn
 
 
 class MyColVar(nn.Module):
-    def __init__(self):
+    def __init__(self, i):
         super().__init__()
         self.pbc = torch.tensor([math.inf])
+        self.i = i
 
     def forward(self, inp: Dict[str, Tensor]):
-        ret = inp[fes.p.pos][:, 0, 0][:, None]
+        ret = inp[fes.p.pos][:, 0, self.i][:, None]
         assert ret.size(1) == 1
         return fes.colvar.add_colvar(inp, ret)
 
 
 def make_inp():
-    n_atm = 1
+    n_atm = 2
     n_bch = 30
-    n_dim = 1
+    n_dim = 2
     cel = torch.eye(n_dim)[None, :, :].expand((n_bch, n_dim, n_dim)) * 1000
     pos = torch.rand([n_bch, n_atm, n_dim])
     pbc = torch.zeros([n_bch, n_dim], dtype=torch.bool)
@@ -45,8 +46,9 @@ def main():
         mol.pop(fes.p.rst)
     mode = 'wb'
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
-    my_colvar = MyColVar()
-    col = fes.colvar.ColVar([my_colvar])
+    my_colvar1 = MyColVar(0)
+    my_colvar2 = MyColVar(1)
+    col = fes.colvar.ColVar([my_colvar1, my_colvar2])
     n_bch = mol[fes.p.pos].size(0)
     mol[fes.p.col_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
     eng = fes.ff.EvalEnergies(mdl, col=col)
@@ -54,8 +56,8 @@ def main():
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
     kbt = fes.md.GlobalLangevin()
-    msk_fix, _ = col[[my_colvar]]
-    msk_bme, _ = col[[my_colvar]]
+    msk_fix, _ = col[[my_colvar1, my_colvar2]]
+    msk_bme, _ = col[[my_colvar1, my_colvar2]]
     dyn = fes.md.PTPQs(eng, adj, kbt, col, msk_fix, msk_bme, 1e-7, True)
     timer = ignite.handlers.Timer()
     with fes.rec.open_trj(trj_path, mode) as rec:

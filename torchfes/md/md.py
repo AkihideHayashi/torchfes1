@@ -27,17 +27,19 @@ class AdjEvl(nn.Module):
 
 class BMEAdjEvl(nn.Module):
     """A series of procedures before and after evaluating energy."""
+    msk_bme: Tensor
 
-    def __init__(self, adj, evl, ktg_fix: bool):
+    def __init__(self, adj, evl, msk_bme, ktg_fix: bool):
         super().__init__()
         self.adj = adj
         self.evl = evl
         self.ktg_fix = ktg_fix
         self.bme_jac = BMEJac(ktg_fix)
-        self.bme_ktg_fix = BMEKTGFix()
+        self.bme_ktg_fix = BMEKTGFix(msk_bme)
+        self.register_buffer('msk_bme', msk_bme)
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = bme_det_lmd(inp)
+        out = bme_det_lmd(inp, self.msk_bme)
         out = updt_tim(out, 1.0)
         out = self.adj(out)
         out = self.evl(out, retain_graph=True)
@@ -221,13 +223,13 @@ class PTPQs(nn.Module):
     """Constrained NVT Leap Frog."""
 
     def __init__(self, eng: EvalEnergies, adj: nn.Module,
-                 kbt: nn.Module, col_var: nn.Module, tol_shk: float,
-                 ktg_fix: bool):
+                 kbt: nn.Module, col_var: nn.Module, msk_fix, msk_bme,
+                 tol_shk: float, ktg_fix: bool):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), ktg_fix)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), msk_bme, ktg_fix)
         self.reset = Reset(self.evl)
         self.kbt = kbt
-        self.shk = BMEShk(col_var, tol_shk)
+        self.shk = BMEShk(col_var, msk_fix, tol_shk)
 
     def forward(self, inp: Dict[str, Tensor]):
         out = self.reset(inp)

@@ -21,7 +21,9 @@ class MultipleRestraints(nn.Module):
 
 
 class HarmonicRestraints(nn.Module):
-    def __init__(self, col, sgn, k):
+    msk: Tensor
+
+    def __init__(self, msk, sgn, k):
         """
         Args:
             pot: potential function.
@@ -33,12 +35,13 @@ class HarmonicRestraints(nn.Module):
             k: spring constant.
         """
         super().__init__()
-        self.col = col
+        self.register_buffer('msk', msk)
         self.sgn = sgn
         self.k = k
 
     def forward(self, inp: Dict[str, Tensor]):
-        col: Tensor = self.col(inp) - inp[p.res_cen]
+        msk = self.msk
+        col: Tensor = (inp[p.col_var] - inp[p.col_cen])[:, msk]
         # col.size() == (n_bch, n_col)
         assert col.dim() == 2
         assert col.size(0) == inp[p.pos].size(0)
