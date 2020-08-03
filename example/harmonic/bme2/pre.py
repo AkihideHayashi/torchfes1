@@ -47,8 +47,9 @@ def main():
     my_colvar2 = MyColVar(1)
     col = fes.colvar.ColVar([my_colvar1, my_colvar2])
     msk, _ = col[[my_colvar1, my_colvar2]]
-    res = fes.res.HarmonicRestraints(msk,
-                                     torch.tensor([0]), torch.tensor([5.0]))
+    res = fes.res.Restraints([
+        fes.res.HarmonicRestraints(msk, torch.tensor([0]), torch.tensor([5.0]))
+    ])
     n_bch = mol[fes.p.pos].size(0)
     mol[fes.p.col_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
     eng = fes.ff.EvalEnergies(mdl, col, res)

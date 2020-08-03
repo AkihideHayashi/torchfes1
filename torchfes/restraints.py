@@ -8,16 +8,26 @@ import torchfes as fes
 from . import properties as p
 
 
-class MultipleRestraints(nn.Module):
+def add_eng_res(mol: Dict[str, Tensor], eng: Tensor):
+    mol = mol.copy()
+    mol[p.eng_res] = torch.cat([mol[p.eng_res], eng], dim=1)
+    return mol
+
+
+class Restraints(nn.Module):
     def __init__(self, restraints: List[nn.Module]):
         super().__init__()
         self.restraints = nn.ModuleList(restraints)
 
-    def forward(self, inp: Dict[str, Tensor]):
-        eng = []
+    def forward(self, mol: Dict[str, Tensor]):
+        pos = mol[p.pos]
+        n_bch = pos.size(0)
+        mol = mol.copy()
+        mol[p.eng_res] = torch.zeros([n_bch, 0],
+                                     dtype=pos.dtype, device=pos.device)
         for restraint in self.restraints:
-            eng.append(restraint(inp))
-        return torch.cat(eng, dim=1)
+            mol = restraint(mol)
+        return mol
 
 
 class HarmonicRestraints(nn.Module):
@@ -47,7 +57,7 @@ class HarmonicRestraints(nn.Module):
         assert col.size(0) == inp[p.pos].size(0)
         eff = (col.sign() * self.sgn) >= 0
         res = (col * col * self.k * eff)
-        return res
+        return add_eng_res(inp, res)
 
 
 class ClosePenalty(nn.Module):
@@ -72,11 +82,10 @@ class ClosePenalty(nn.Module):
         R = self.radius[ei] + self.radius[ej]
         mask = dis < R
         eng_bnd = k * (dis - R).pow(2) * mask
-        # eng_bnd = (k * (dis - R).pow(2)).masked_fill(dis > R, 0.0)
         n_bch, n_atm, _ = adj.spc.size()
         eng_atm = torch.index_add(
             torch.zeros((n_bch * n_atm)).to(inp[p.pos]),
             0, n * n_atm + i, eng_bnd
         ).view((n_bch, n_atm))
         eng_mol = eng_atm.sum(1)
-        return eng_mol.unsqueeze(1)
+        return add_eng_res(inp, eng_mol.unsqueeze(1))

@@ -26,15 +26,13 @@ class EvalEnergies(nn.Module):
         out[p.eng_mol_std] = eng_mdl.eng_mol_std
         out[p.eng_atm_ens] = eng_mdl.eng_atm_ens
         out[p.eng_mol_ens] = eng_mdl.eng_mol_ens
-        n_bch = out[p.pos].size(0)
         if self.col is not None:
             out = self.col(out)
         if self.res is not None:
-            eng_res = self.res(out)
+            out = self.res(out)
+            eng_tot = eng_mdl.eng_mol + out[p.eng_res].sum(1)
         else:
-            eng_res = eng_mdl.eng_mol.new_zeros([n_bch, 0])
-        eng_tot = eng_mdl.eng_mol + eng_res.sum(1)
-        out[p.eng_res] = eng_res
+            eng_tot = eng_mdl.eng_mol
         out[p.eng] = eng_tot
         return out
 
