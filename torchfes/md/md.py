@@ -28,19 +28,19 @@ class AdjEvl(nn.Module):
 class BMEAdjEvl(nn.Module):
     """A series of procedures before and after evaluating energy."""
 
-    def __init__(self, adj, evl, col, ktg_fix: bool):
+    def __init__(self, adj, evl, ktg_fix: bool):
         super().__init__()
         self.adj = adj
         self.evl = evl
         self.ktg_fix = ktg_fix
-        self.bme_jac = BMEJac(col, ktg_fix)
-        self.bme_ktg_fix = BMEKTGFix(col)
+        self.bme_jac = BMEJac(ktg_fix)
+        self.bme_ktg_fix = BMEKTGFix()
 
     def forward(self, inp: Dict[str, Tensor]):
         out = bme_det_lmd(inp)
         out = updt_tim(out, 1.0)
         out = self.adj(out)
-        out = self.evl(out)
+        out = self.evl(out, retain_graph=True)
         out = self.bme_jac(out)
         if self.ktg_fix:
             out = self.bme_ktg_fix(out)
@@ -124,14 +124,13 @@ class PQsF(nn.Module):
                  col_var: nn.Module, tol_shk: float,
                  mod: Optional[nn.Module] = None):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng, mod), col_var, False)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng, mod), False)
         self.reset = Reset(self.evl)
         self.fir = fire
         self.shk = BMEShk(col_var, tol_shk)
 
     def forward(self, inp: Dict[str, Tensor]):
         out = self.reset(inp)
-        out[p.bme_frc] = torch.zeros_like(out[p.frc])
         out = updt_mom(out, 1.0)
         out = updt_pos(out, 1.0)
         out = self.shk(out)
@@ -225,7 +224,7 @@ class PTPQs(nn.Module):
                  kbt: nn.Module, col_var: nn.Module, tol_shk: float,
                  ktg_fix: bool):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), ktg_fix)
         self.reset = Reset(self.evl)
         self.kbt = kbt
         self.shk = BMEShk(col_var, tol_shk)
@@ -248,7 +247,7 @@ class TPQsPTr(nn.Module):
                  kbt: nn.Module, col_var: nn.Module,
                  tol_shk: float, tol_rtl: float, ktg_fix: bool):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), ktg_fix)
         self.reset = Reset(self.evl)
         self.kbt = kbt
         self.shk = BMEShk(col_var, tol_shk)
@@ -274,7 +273,7 @@ class PQTQs(nn.Module):
                  kbt: nn.Module, col_var: nn.Module,
                  tol_shk: float, ktg_fix: bool):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), ktg_fix)
         self.reset = Reset(self.evl)
         self.kbt = kbt
         self.shk = BMEShk(col_var, tol_shk)
@@ -297,7 +296,7 @@ class PQTQsPr(nn.Module):
                  kbt: nn.Module, col_var: nn.Module,
                  tol_shk: float, tol_rtl: float, ktg_fix: bool):
         super().__init__()
-        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), col_var, ktg_fix)
+        self.evl = BMEAdjEvl(adj, EvalEnergiesForces(eng), ktg_fix)
         self.reset = Reset(self.evl)
         self.kbt = kbt
         self.shk = BMEShk(col_var, tol_shk)

@@ -79,30 +79,26 @@ def lbfgs(g: Tensor, s: Tensor, y: Tensor, r: Tensor):
 
 
 class ExactHessian(nn.Module):
-    def __init__(self, lag):
+    def __init__(self):
         super().__init__()
-        self.lag = lag
 
     def forward(self, inp: Dict[str, Tensor]):
         out = inp.copy()
-        L = self.lag(out)
-        x = inp[p.gen_pos]
-        g = grad(L, x, create_graph=True)
-        h = hessian(L, x, g)
+        g = grad(out[p.gen_eng], inp[p.gen_pos], create_graph=True)
+        h = hessian(out[p.gen_eng], inp[p.gen_pos], g)
         out[p.gen_grd] = g
         out[p.gen_hes] = h
         return out
 
 
 class BFGS(nn.Module):
-    def __init__(self, lag, stp: float):
+    def __init__(self, stp: float):
         super().__init__()
-        self.lag = lag
         self.stp = stp
 
     def forward(self, mol: Dict[str, Tensor]):
-        L = self.lag(mol)
         x = mol[p.gen_pos]
+        L = mol[p.gen_eng]
         g = grad(L, x)
         if p.gen_stp in mol:
             s = mol[p.gen_stp]

@@ -5,6 +5,7 @@ from torch import nn, Tensor
 import pointneighbor as pn
 from ..adj import get_adj_sft_spc, vec_sod
 from .. import properties as p
+from .multicolvar import add_colvar
 
 
 def ravel1(idx: List[Tensor], siz: List[int]):
@@ -153,4 +154,4 @@ class Coordination(nn.Module):
                             dtype=sod.dtype, device=sod.device)
         coord.index_add_(0, idx, coords)
         ret = coord.view([n_bch, self.n]) / 2
-        return ret
+        return add_colvar(inp, ret)

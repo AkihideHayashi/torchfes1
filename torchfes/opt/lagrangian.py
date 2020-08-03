@@ -1,6 +1,7 @@
 from typing import Dict
 from torch import nn, Tensor
 from .. import properties as p
+from .generalize import specialize_pos
 
 
 class ConstraintLagrangian(nn.Module):
@@ -17,7 +18,8 @@ class ConstraintLagrangian(nn.Module):
         L = out[p.eng] - (out[p.con_mul] * con).sum(1)
         if p.con_aug in out:
             L = L + (con.pow(2).sum(1) * 0.5 / out[p.con_aug])
-        return L
+        out[p.gen_eng] = L
+        return out
 
 
 class EnergyFunction(nn.Module):
@@ -29,4 +31,5 @@ class EnergyFunction(nn.Module):
     def forward(self, inp: Dict[str, Tensor]):
         out = self.adj(inp)
         out = self.eng(out)
-        return out[p.eng]
+        out[p.gen_eng] = out[p.eng]
+        return out

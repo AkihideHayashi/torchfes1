@@ -8,15 +8,15 @@ from torch import nn, Tensor
 import torchfes as fes
 
 
-class ColVar(nn.Module):
+class MyColVar(nn.Module):
     def __init__(self):
         super().__init__()
         self.pbc = torch.tensor([math.inf])
 
     def forward(self, inp: Dict[str, Tensor]):
         ret = inp[fes.p.pos][:, 0, 0][:, None]
-        assert ret.size() == (1, 1)
-        return ret
+        assert ret.size(1) == 1
+        return fes.colvar.add_colvar(inp, ret)
 
 
 def main():
@@ -29,10 +29,11 @@ def main():
     min_ = -0.5
     max_ = 0.5
     bins = 40
+    my_colvar = MyColVar()
 
     x = fes.analyze.histc_axis(bins, min_, max_)
     hil = {key: val[n:n+1] for key, val in hil.items()}
-    y = -fes.fes.mtd.gaussian(hil, ColVar().pbc, x[:, None])
+    y = -fes.fes.mtd.gaussian(hil, my_colvar.pbc, x[:, None])
 
     plt.plot(x, y - y.min())
     plt.plot(x, x * x)

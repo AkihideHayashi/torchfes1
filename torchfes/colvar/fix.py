@@ -3,6 +3,7 @@ from typing import Dict, List
 import torch
 from torch import nn, Tensor
 from .. import properties as p
+from .multicolvar import add_colvar
 
 
 def fix(idx: List[int], num_dim: int = 3):
@@ -39,5 +40,8 @@ class FixGen(nn.Module):
         self.register_buffer('pbc', torch.ones(n) * math.inf)
 
     def forward(self, mol: Dict[str, Tensor]):
+        mol = mol.copy()
         msk = self.fix(mol)
-        return mol[p.pos][:, msk]
+        mol = add_colvar(mol, mol[p.pos][:, msk])
+        mol[p.fix_msk] = msk
+        return mol

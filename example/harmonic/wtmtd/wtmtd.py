@@ -61,8 +61,10 @@ def main():
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    mtd = fes.fes.mtd.BatchMTD(
-        fes.fes.mtd.MetaDynamics(*col[[my_colvar]], [0.1], 0.01))
+    bias_factor = 2.0
+    mtd = fes.fes.mtd.EnsembleMTD(
+        fes.fes.mtd.WellTemparedMetaDynamics(
+            *col[[my_colvar]], [0.1], 0.01, bias_factor))
     kbt = fes.md.GlobalLangevin()
     dyn = fes.md.PTPQ(eng, adj, kbt)
     timer = ignite.handlers.Timer()
@@ -72,7 +74,7 @@ def main():
             mol = dyn(mol)
             if i % 100 == 0:
                 mol, new = mtd(mol)
-                hil.put(new)
+                hil.put(fes.fes.wtmtd_to_mtd(new, bias_factor))
             rec.put(mol)
             stp = mol[fes.p.stp].tolist()
             tim = round(Decimal(timer.value()), 3)

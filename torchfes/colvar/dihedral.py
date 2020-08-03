@@ -3,6 +3,7 @@ from typing import Optional, Dict
 import torch
 from torch import Tensor, nn
 from .. import properties as p
+from .multicolvar import add_colvar
 
 
 def _dot(a: Tensor, b: Tensor):
@@ -53,5 +54,5 @@ class Dihedral(nn.Module):
         self.pbc = torch.tensor([2 * math.pi for _ in range(idx.size(1))])
         assert not self.cel
 
-    def forward(self, inp: Dict[str, Tensor]):
-        return dihedral(self.idx, inp[p.pos])
+    def forward(self, mol: Dict[str, Tensor]):
+        return add_colvar(mol, dihedral(self.idx, mol[p.pos]))

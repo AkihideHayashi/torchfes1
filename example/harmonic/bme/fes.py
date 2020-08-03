@@ -5,7 +5,7 @@ import torchfes as fes
 
 
 def main():
-    keys = (fes.p.bme_cen, fes.p.bme_lmd, fes.p.bme_ktg, fes.p.bme_fix)
+    keys = (fes.p.col_cen, fes.p.col_mul, fes.p.bme_ktg, fes.p.bme_fix)
     datas = {key: [] for key in keys}
     trj_path = Path('trj')
     with fes.rec.open_trj(trj_path, 'rb') as f:
@@ -14,9 +14,9 @@ def main():
                 datas[key].append(data[key])
     datas = {key: torch.stack(val) for key, val in datas.items()}
     jac = fes.fes.bme.bme_postprocess(
-        datas[fes.p.bme_lmd], datas[fes.p.bme_ktg], datas[fes.p.bme_fix])
+        datas[fes.p.col_mul], datas[fes.p.bme_ktg], datas[fes.p.bme_fix])
     jac = jac.squeeze(0)
-    x = datas[fes.p.bme_cen].mean(0).squeeze(1)
+    x = datas[fes.p.col_cen].mean(0).squeeze(1)
     plt.plot(x, jac)
     plt.show()
     # min_ = pos.min().item()

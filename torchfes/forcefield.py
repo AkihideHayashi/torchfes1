@@ -9,9 +9,12 @@ from .utils import detach_, grad
 
 
 class EvalEnergies(nn.Module):
-    def __init__(self, mdl, res: Optional[nn.Module] = None):
+    def __init__(self, mdl,
+                 col: Optional[nn.Module] = None,
+                 res: Optional[nn.Module] = None):
         super().__init__()
         self.mdl = mdl
+        self.col = col
         self.res = res
 
     def forward(self, inp: Dict[str, Tensor]):
@@ -24,6 +27,8 @@ class EvalEnergies(nn.Module):
         out[p.eng_atm_ens] = eng_mdl.eng_atm_ens
         out[p.eng_mol_ens] = eng_mdl.eng_mol_ens
         n_bch = out[p.pos].size(0)
+        if self.col is not None:
+            out = self.col(out)
         if self.res is not None:
             eng_res = self.res(out)
         else:

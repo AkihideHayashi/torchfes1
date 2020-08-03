@@ -11,14 +11,15 @@ import pnpot
 import pointneighbor as pn
 
 
-class ColVar(nn.Module):
+class MyColVar(nn.Module):
     def __init__(self):
         super().__init__()
         self.pbc = torch.tensor([math.inf])
 
     def forward(self, inp: Dict[str, Tensor]):
         ret = inp[fes.p.pos][:, 0, 0][:, None]
-        return ret
+        assert ret.size(1) == 1
+        return fes.colvar.add_colvar(inp, ret)
 
 
 def make_inp():
@@ -44,10 +45,11 @@ def main():
         mol.pop(fes.p.rst)
     mode = 'wb'
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
-    col = ColVar()
+    my_colvar = MyColVar()
+    col = fes.colvar.ColVar([my_colvar])
     n_bch = mol[fes.p.pos].size(0)
-    mol[fes.p.bme_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
-    eng = fes.ff.EvalEnergies(mdl)
+    mol[fes.p.col_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
+    eng = fes.ff.EvalEnergies(mdl, col=col)
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
@@ -57,7 +59,7 @@ def main():
     with fes.rec.open_trj(trj_path, mode) as rec:
         for _ in range(1000):
             mol = dyn(mol)
-            rec.put(fes.data.filter_save_trj(mol))
+            rec.put(fes.utils.detach(fes.data.filter_case(mol, fes.p.saves)))
             tim = round(Decimal(timer.value()), 3)
             timer.reset()
             print(f'{_} {tim}')
