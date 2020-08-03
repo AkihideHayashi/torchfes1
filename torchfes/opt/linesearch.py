@@ -5,7 +5,8 @@ from .. import properties as p
 
 
 def limit_step_size(stp: Tensor, siz: float):
-    stp_siz = stp.norm(p=2, dim=1)[:, None].expand_as(stp)
+    # stp_siz = stp.norm(p=2, dim=1)[:, None].expand_as(stp)
+    stp_siz, _ = stp.max(dim=1)
     stp = torch.where(
         stp_siz > siz,
         stp / stp_siz * siz,
@@ -22,7 +23,7 @@ class LimitStepSize(nn.Module):
 
     def forward(self, inp: Dict[str, Tensor]):
         out = self.stp(inp)
-        stp = out[p.gen_stp]
+        stp = out[p.gen_dir]
         stp = limit_step_size(stp, self.max_stp)
-        out[p.gen_stp] = stp
+        out[p.gen_vec] = stp
         return out

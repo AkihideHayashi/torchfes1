@@ -1,22 +1,43 @@
 import math
-from typing import Dict, List, Union
+from typing import Dict, List
 import torch
 from torch import nn, Tensor
 from .. import properties as p
 
 
+def fix(idx: List[int], num_dim: int = 3):
+    return FixGen(Fix(torch.tensor(idx), num_dim))
+
+
+def fix_msk(idx: Tensor, size: List[int]):
+    msk = torch.zeros(size, dtype=torch.bool, device=idx.device)
+    assert len(size) == 2
+    msk[idx, :] = True
+    return msk
+
+
 class Fix(nn.Module):
     idx: Tensor
 
-    def __init__(self, idx: Union[List[int], Tensor], n_dim: int = 3):
+    def __init__(self, idx: Tensor, num_dim: int = 3):
         super().__init__()
-        self.n_dim = 3
-        if isinstance(idx, list):
-            idx = torch.tensor(idx)
         self.register_buffer('idx', idx)
-        self.pbc = torch.tensor([math.inf for _ in range(len(idx) * n_dim)])
+        self.num_dim = num_dim
 
-    def forward(self, inp: Dict[str, Tensor]):
-        ret = inp[p.pos][:, self.idx, :].flatten(1)
-        assert ret.size(1) == self.pbc.size(0)
-        return ret
+    def forward(self, mol: Dict[str, Tensor]):
+        size = list(mol[p.pos].size())[1:]
+        return fix_msk(self.idx, size)
+
+
+class FixGen(nn.Module):
+    pbc: Tensor
+
+    def __init__(self, fix: Fix):
+        super().__init__()
+        self.fix = fix
+        n = fix.idx.numel() * fix.num_dim
+        self.register_buffer('pbc', torch.ones(n) * math.inf)
+
+    def forward(self, mol: Dict[str, Tensor]):
+        msk = self.fix(mol)
+        return mol[p.pos][:, msk]

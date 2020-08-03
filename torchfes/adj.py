@@ -85,3 +85,30 @@ class SetAdjSftSpcVecSod(nn.Module):
             if typ == p.lil:
                 out = set_lil_adj_sft_spc_vec_sod(out, rc, False)
         return out
+
+
+def adj_cls(cut: List[Tuple[str, float]], dlt: float,
+            calc='ful', criteria=0):
+    r = [rci[1] for rci in cut]
+    rc = max(r)
+    if calc == 'ful':
+        calc_module = pn.Coo2FulSimple
+    elif calc == 'cel':
+        calc_module = pn.Coo2Cel
+    else:
+        raise NotImplementedError(calc)
+
+    if criteria == 0:
+        cri_module = pn.StrictCriteria(dlt)
+    elif criteria > 0:
+        cri_module = pn.VerletCriteria(criteria)
+    else:
+        raise NotImplementedError(criteria)
+
+    if dlt == 0:
+        return SetAdjSftSpcVecSod(calc_module(rc), cut)
+    elif dlt > 0:
+        return SetAdjSftSpcVecSod(
+            pn.Coo2BookKeeping(calc_module(rc + dlt), cri_module, rc), cut)
+    else:
+        raise KeyError()

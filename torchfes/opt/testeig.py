@@ -1,63 +1,40 @@
-from typing import List
+from typing import Dict
 import torch
-from torch import Tensor
-from .utils import _vector_pos, generalize_pos_lag
+from torch import Tensor, nn
 from .. import properties as p
 from .derivative import jacobian, hessian
+from .generalize import Generalize
+
+
+class FixedEig(nn.Module):
+    def __init__(self, adj, eng, con):
+        super().__init__()
+        self.adj = adj
+        self.eng = eng
+        self.con = con
+        self.gen = Generalize(None, None, False)
+
+    def forward(self, mol: Dict[str, Tensor]):
+        mol = self.gen(mol)
+        mol = self.adj(mol)
+        mol = self.eng(mol)
+        col = self.con(mol) - mol[p.con_cen]
+        q = mol[p.gen_pos]
+        a = jacobian(col, q)
+        h = hessian(mol[p.eng], q)
+        e, c = split_hessian(h, a)
+        n_bch, n_atm, n_dim = mol[p.pos].size()
+        n_mod = c.size(1)
+        c = c.view([n_bch, n_mod, n_atm, n_dim])
+        return e, c
 
 
 def split_hessian(h: Tensor, a: Tensor):
-    n_con = a.size(0)
-    u_ = _split_dof(a)
-    h_ = (u_ @ h @ u_.T)[n_con:, n_con:]
+    n_con = a.size(1)
+    at = a.transpose(1, 2)  # bch, dim, col
+    q, r = torch.qr(at, some=False)
+    q = q[:, :, n_con:]  # bch, dim, (dim - col)
+    qt = q.transpose(1, 2)
+    h_ = qt @ h @ q
     e, u = torch.symeig(h_, eigenvectors=True)
-    return e, (u.T @ u_[n_con:, :]).T
-
-
-def _split_dof(a: Tensor):
-    n_con, n_dim = a.size()
-    eye = torch.eye(n_dim)
-    u = torch.cat([a, eye])
-    return _gram_schmidt(u)
-
-
-def _gram_schmidt(u: Tensor):
-    e: List[Tensor] = []
-    _, n = u.size()
-    for i in range(u.size(0)):
-        new = _normalize(u[i])
-        new_ = new.clone()
-        for ei in e:
-            assert torch.allclose(ei.norm(), torch.tensor(1.0)), ei.norm()
-            new -= (new_ @ ei) * ei
-        if new.norm() > 1e-6:
-            e.append(_normalize(new))
-    assert len(e) == n
-    return torch.stack(e)
-
-
-def _normalize(x: Tensor):
-    if x.dim() == 1:
-        return x / x.norm()
-    elif x.dim() == 2:
-        return x / x.norm(p=2, dim=1)[:, None]
-    else:
-        raise NotImplementedError()
-
-
-def fixed_eig(adj, eng, con, mol):
-    assert mol[p.pos].size(0) == 1
-    mol = mol.copy()
-    mol = generalize_pos_lag(mol)
-    # q, pos = _vector_pos(mol[p.pos])
-    # mol[p.pos] = pos
-    mol = adj(mol)
-    mol = eng(mol)
-    col = con(mol)
-    q = mol[p.gen_pos]
-    a = jacobian(col, q)[0]
-    h = hessian(mol[p.eng], q)[0]
-    e, c = split_hessian(h, a)
-    _, n_atm, n_dim = mol[p.pos].size()
-    c = c.t().view([-1, n_atm, n_dim])
-    return e, c
+    return e, u.transpose(1, 2) @ qt

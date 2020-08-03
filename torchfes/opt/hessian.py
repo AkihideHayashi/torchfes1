@@ -4,7 +4,12 @@ sk: x(k+1) - x(k)
 Bk: Hessian
 rk: 1 / (y(k)^T s(k))
 """
-from torch import Tensor
+from .derivative import hessian
+from torch import nn, Tensor
+from typing import Dict
+import torch
+from ..utils import grad
+from .. import properties as p
 
 
 def _vv(x: Tensor, y: Tensor):
@@ -71,3 +76,42 @@ def lbfgs(g: Tensor, s: Tensor, y: Tensor, r: Tensor):
         bi = r[i] * _dot(y[i], z)
         z = z + s[i] * a[i] - bi
     return -z
+
+
+class ExactHessian(nn.Module):
+    def __init__(self, lag):
+        super().__init__()
+        self.lag = lag
+
+    def forward(self, inp: Dict[str, Tensor]):
+        out = inp.copy()
+        L = self.lag(out)
+        x = inp[p.gen_pos]
+        g = grad(L, x, create_graph=True)
+        h = hessian(L, x, g)
+        out[p.gen_grd] = g
+        out[p.gen_hes] = h
+        return out
+
+
+class BFGS(nn.Module):
+    def __init__(self, lag, stp: float):
+        super().__init__()
+        self.lag = lag
+        self.stp = stp
+
+    def forward(self, mol: Dict[str, Tensor]):
+        L = self.lag(mol)
+        x = mol[p.gen_pos]
+        g = grad(L, x)
+        if p.gen_stp in mol:
+            s = mol[p.gen_stp]
+            y = g - mol[p.gen_grd]
+            h = mol[p.gen_hes]
+            h = bfgs_hes(h, s, y)
+        else:
+            bch, dim = mol[p.gen_pos].size()
+            h = torch.eye(dim)[None, :, :].expand([bch, dim, dim]) / self.stp
+        mol[p.gen_grd] = g
+        mol[p.gen_hes] = h
+        return mol

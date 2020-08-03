@@ -3,8 +3,6 @@ from pathlib import Path
 import torch
 from torch import Tensor
 from .pathpair import PathPair
-from ...data.mol import filter_case
-from ...properties import saves
 
 
 def _load_all(path):
@@ -46,7 +44,6 @@ class TorchTrajectory:
     def append(self, data: Dict[str, Tensor]):
         if self.mode not in ('ab', 'wb'):
             raise RuntimeError(self.mode)
-        data = filter_case(data, saves)
         self.idx.append(self.f_trj.tell())
         torch.save(self.f_trj.tell(), self.f_idx)
         torch.save(data, self.f_trj)
