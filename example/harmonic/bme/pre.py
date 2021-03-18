@@ -30,9 +30,9 @@ def make_inp():
     pbc = torch.zeros([n_bch, n_dim], dtype=torch.bool)
     elm = torch.ones([n_bch, n_atm])
     mas = torch.ones([n_bch, n_atm])
-    inp = fes.inp.init_mol(cel, pbc, elm, pos, mas)
-    fes.inp.add_nvt(inp, 1.0 * fs, 300 * kB)
-    fes.inp.add_global_langevin(inp, 100.0 * fs)
+    inp = fes.mol.init_mol(cel, pbc, elm, pos, mas)
+    inp = fes.mol.add_nvt(inp, 1.0 * fs, 300 * kB)
+    inp = fes.mol.add_global_langevin(inp, 100.0 * fs)
     return inp
 
 
@@ -46,11 +46,12 @@ def main():
                                      torch.tensor([0]), torch.tensor([5.0]))
     n_bch = mol[fes.p.pos].size(0)
     mol[fes.p.res_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
-    eng = fes.ff.EvalEnergies(mdl, res)
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    dyn = fes.md.PQF(eng, adj, fes.md.FIRE(0.5 * fs))
+    evl = fes.ff.get_adj_eng_frc(adj, mdl, ext_eng=res)
+    dyn = fes.opt.fire.fire(evl, fes.opt.fire.FIRE(0.5 * fs))
+    mol = evl(mol)
     timer = ignite.handlers.Timer()
     with fes.rec.open_trj(pre_path, mode) as rec:
         for _ in range(100):

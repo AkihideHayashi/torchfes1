@@ -11,7 +11,7 @@ import pnpot
 import pointneighbor as pn
 
 
-class MyColVar(nn.Module):
+class ColVar(nn.Module):
     def __init__(self):
         super().__init__()
         self.pbc = torch.tensor([math.inf])
@@ -19,7 +19,7 @@ class MyColVar(nn.Module):
     def forward(self, inp: Dict[str, Tensor]):
         ret = inp[fes.p.pos][:, 0, 0][:, None]
         assert ret.size(1) == 1
-        return fes.colvar.add_colvar(inp, ret)
+        return ret
 
 
 def make_inp():
@@ -53,26 +53,25 @@ def main():
     trj_path = Path('trj')
     hil_path = Path('hil')
     mol, mode = make_inp_or_continue(trj_path)
-    my_colvar = MyColVar()
-    col = fes.colvar.ColVar([my_colvar])
-    res = fes.fes.mtd.GaussianPotential(*col[[my_colvar]])
+    col = ColVar()
+    res = fes.fes.mtd.GaussianPotential(col)
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
-    eng = fes.ff.EvalEnergies(mdl, col, res)
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
-    mtd = fes.fes.mtd.BatchMTD(
-        fes.fes.mtd.MetaDynamics(*col[[my_colvar]], [0.1], 0.01))
+    evl = fes.ff.get_adj_eng_frc(adj, mdl, ext_eng=res)
+    mtd = fes.fes.mtd.EnsembleMTD(fes.fes.mtd.MetaDynamics(col, [0.1], 0.01))
     kbt = fes.md.GlobalLangevin()
-    dyn = fes.md.PTPQ(eng, adj, kbt)
+    dyn = fes.md.leap_frog(evl, kbt=kbt)
     timer = ignite.handlers.Timer()
+    mol = evl(mol)
     with fes.rec.open_trj(trj_path, mode) as rec,\
             fes.rec.open_trj(hil_path, mode) as hil:
         for i in range(10000):
-            mol = dyn(mol)
             if i % 100 == 0:
                 mol, new = mtd(mol)
                 hil.put(new)
+            mol = dyn(mol)
             rec.put(mol)
             stp = mol[fes.p.stp].tolist()
             tim = round(Decimal(timer.value()), 3)

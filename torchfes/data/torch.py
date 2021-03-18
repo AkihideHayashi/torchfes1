@@ -69,3 +69,9 @@ def _pad_siz(tensor: Tensor, size: List[int], value: float):
     pad_.reverse()
     return torch.nn.functional.pad(tensor, pad_,
                                    mode='constant', value=value)
+
+
+def pad_dim_siz(tensor: Tensor, dim: int, siz: int, value: float):
+    size = list(tensor.size())
+    size[dim] = siz
+    return _pad_siz(tensor, size, value)

@@ -72,3 +72,9 @@ def max_frc(inp: Dict[str, Tensor], n_elm: int):
         frc_elm_max, _ = frc_elm.max(dim=1)
         forces.append(frc_elm_max)
     return torch.stack(forces, dim=1)
+
+
+def stress_tensor(cel: Tensor, cel_frc: Tensor):
+    cel_det = torch.det(cel)
+    sts = (cel_frc @ cel) / cel_det[:, None, None]
+    return sts

@@ -8,4 +8,8 @@ from . import restraints as res
 from . import mol, md, data
 from . import forcefield as ff
 from . import analyze
-from . import ts
+from . import ts, opt
+from . import api
+from . import optimizers
+from . import ase
+from . import harmonics

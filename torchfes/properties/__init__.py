@@ -6,8 +6,8 @@ from .bme import *
 from .mtd import *
 from .adj import *
 from .thermostat import *
-from .colvar import *
 from .cases import atoms, batch, saves, metad
+from .constraints import *
 
 
 default_values = {
@@ -26,6 +26,11 @@ default_values = {
     mtd_cen: 0.0,
     mtd_hgt: 0.0,
     mtd_prc: 0.0,
+    con_frc: 0.0,
+    con_jac: 0.0,
+    fix_msk: True,
+    eig_vec: 0.0,
+    dim: 0.0,
 }
 
 for key in atoms:

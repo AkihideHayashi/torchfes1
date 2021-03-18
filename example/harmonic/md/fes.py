@@ -6,8 +6,7 @@ import torchfes as fes
 def main():
     pos = []
     kbt = []
-    path = fes.rec.PathPair('md')
-    with fes.rec.open_torch(path, 'rb') as f:
+    with fes.rec.open_trj('md', 'rb') as f:
         for data in f:
             pos.append(data[fes.p.pos].item())
             kbt.append(data[fes.p.kbt].item())

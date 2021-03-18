@@ -32,38 +32,34 @@ def new_gaussian_wtmtd(prc: Tensor, hgt: Tensor, col: Tensor,
 class MetaDynamics(nn.Module):
     prc: Tensor
     hgt: Tensor
-    msk: Tensor
-    pbc: Tensor
 
-    def __init__(self, msk: Tensor, pbc: Tensor,
+    def __init__(self, col: nn.Module,
                  wdt: Union[Tensor, List[float]], hgt: Union[Tensor, float],
                  ):
         super().__init__()
+        self.col = col
         if isinstance(wdt, list):
             wdt = torch.tensor(wdt)
         if isinstance(hgt, float):
             hgt = torch.tensor(hgt)
         self.register_buffer('prc', 1 / (wdt * wdt))
         self.register_buffer('hgt', hgt)
-        self.register_buffer('msk', msk)
-        self.register_buffer('pbc', pbc)
 
     def forward(self, inp: Dict[str, Tensor]):
-        col = inp[p.col_var][:, self.msk]
-        return new_gaussian_mtd(self.prc, self.hgt, col)
+        return new_gaussian_mtd(self.prc, self.hgt, self.col(inp))
 
 
 class WellTemparedMetaDynamics(nn.Module):
     pbc: Tensor
-    msk: Tensor
     prc: Tensor
     hgt: Tensor
     gam: Tensor  # bias_factor
 
-    def __init__(self, msk: Tensor, pbc: Tensor,
+    def __init__(self, col: nn.Module,
                  wdt: Union[Tensor, List[float]], hgt: Union[Tensor, float],
                  gam: Union[Tensor, float]):
         super().__init__()
+        self.col = col
         if isinstance(wdt, list):
             wdt = torch.tensor(wdt)
         if isinstance(hgt, float):
@@ -73,11 +69,12 @@ class WellTemparedMetaDynamics(nn.Module):
         self.register_buffer('prc', 1 / (wdt * wdt))
         self.register_buffer('hgt', hgt)
         self.register_buffer('gam', gam)
-        self.register_buffer('pbc', pbc)
-        self.register_buffer('msk', msk)
+        if not isinstance(self.col.pbc, Tensor):
+            raise KeyError(col.pbc)
+        self.register_buffer('pbc', self.col.pbc)
 
     def forward(self, inp: Dict[str, Tensor]):
-        col = inp[p.col_var][:, self.msk]
+        col = self.col(inp)
         if p.mtd_cen in inp:
             eng = gaussian_inner(
                 self.pbc, inp[p.mtd_prc], inp[p.mtd_cen], inp[p.mtd_hgt], col)

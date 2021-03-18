@@ -32,7 +32,8 @@ class BatchMTD(nn.Module):
         new = {
             p.mtd_cen: cen[:, None, :],
             p.mtd_prc: prc[:, None, :],
-            p.mtd_hgt: hgt[:, None]
+            p.mtd_hgt: hgt[:, None],
+            p.idt: mol[p.idt],
         }
         out = cat_gaussian(mol, new)
         return out, new

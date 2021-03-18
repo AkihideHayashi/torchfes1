@@ -33,7 +33,7 @@ def elm_to_sym(elm: np.array, sym: np.array):
 
 def to_atoms(mol: Dict[str, Tensor], sym: List[str]):
     assert mol[p.pos].size(0) == 1
-    arr = {key: val.clone().detach().squeeze(0).numpy()
+    arr = {key: val.clone().detach().to('cpu').squeeze(0).numpy()
            for key, val in mol.items()}
     arr[p.sym] = np.array(sym)[arr.pop(p.elm)]
     return _array_to_atoms(arr)

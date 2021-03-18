@@ -1,9 +1,9 @@
 from typing import Dict, List, Tuple
 from torch import Tensor, nn
 import pointneighbor as pn
-from pointneighbor.neighbor.lil2.lil2 import (
-    transform_tensor_coo_to_lil, transformation_mask_coo_to_lil
-)
+# from pointneighbor.neighbor.lil2.lil2 import (
+    # transform_tensor_coo_to_lil, transformation_mask_coo_to_lil
+# )
 from pointneighbor import AdjSftSpc, VecSod
 from .utils import pnt_ful
 from . import properties as p
@@ -44,8 +44,7 @@ def set_coo_adj_sft_spc_vec_sod(
     return out
 
 
-def set_lil_adj_sft_spc_vec_sod(
-        inp: Dict[str, Tensor], rc: float, set_vec_sod: bool):
+def set_lil_adj_sft_spc(inp: Dict[str, Tensor], rc: float):
     out = inp.copy()
     coo = AdjSftSpc(
         adj=inp[p.nei_adj(p.coo, rc)],
@@ -56,16 +55,6 @@ def set_lil_adj_sft_spc_vec_sod(
     out[p.nei_adj(p.lil, rc)] = lil.adj
     out[p.nei_sft(p.lil, rc)] = lil.sft
     out[p.nei_spc(p.lil, rc)] = lil.spc
-    if set_vec_sod:
-        coo_vec_sod = VecSod(
-            vec=inp[p.vec(p.coo, rc)],
-            sod=inp[p.sod(p.coo, rc)]
-        )
-        mask = transformation_mask_coo_to_lil(coo)
-        out[p.vec(p.lil, rc)] = transform_tensor_coo_to_lil(
-            coo_vec_sod.vec, mask, 100)
-        out[p.sod(p.lil, rc)] = transform_tensor_coo_to_lil(
-            coo_vec_sod.sod, mask, 100)
     return out
 
 
@@ -83,7 +72,7 @@ class SetAdjSftSpcVecSod(nn.Module):
             out = set_coo_adj_sft_spc_vec_sod(out, adj, vec, rc, False)
         for typ, rc in self.cut:
             if typ == p.lil:
-                out = set_lil_adj_sft_spc_vec_sod(out, rc, False)
+                out = set_lil_adj_sft_spc(out, rc)
         return out
 
 

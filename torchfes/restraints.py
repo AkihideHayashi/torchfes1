@@ -8,32 +8,20 @@ import torchfes as fes
 from . import properties as p
 
 
-def add_eng_res(mol: Dict[str, Tensor], eng: Tensor):
-    mol = mol.copy()
-    mol[p.eng_res] = torch.cat([mol[p.eng_res], eng], dim=1)
-    return mol
-
-
-class Restraints(nn.Module):
+class MultipleRestraints(nn.Module):
     def __init__(self, restraints: List[nn.Module]):
         super().__init__()
         self.restraints = nn.ModuleList(restraints)
 
-    def forward(self, mol: Dict[str, Tensor]):
-        pos = mol[p.pos]
-        n_bch = pos.size(0)
-        mol = mol.copy()
-        mol[p.eng_res] = torch.zeros([n_bch, 0],
-                                     dtype=pos.dtype, device=pos.device)
+    def forward(self, inp: Dict[str, Tensor]):
+        eng = []
         for restraint in self.restraints:
-            mol = restraint(mol)
-        return mol
+            eng.append(restraint(inp))
+        return torch.cat(eng, dim=1)
 
 
 class HarmonicRestraints(nn.Module):
-    msk: Tensor
-
-    def __init__(self, msk, sgn, k):
+    def __init__(self, col, sgn, k):
         """
         Args:
             pot: potential function.
@@ -45,19 +33,49 @@ class HarmonicRestraints(nn.Module):
             k: spring constant.
         """
         super().__init__()
-        self.register_buffer('msk', msk)
+        self.col = col
         self.sgn = sgn
         self.k = k
 
     def forward(self, inp: Dict[str, Tensor]):
-        msk = self.msk
-        col: Tensor = (inp[p.col_var] - inp[p.col_cen])[:, msk]
+        col: Tensor = self.col(inp) - inp[p.con_cen]
         # col.size() == (n_bch, n_col)
         assert col.dim() == 2
         assert col.size(0) == inp[p.pos].size(0)
         eff = (col.sign() * self.sgn) >= 0
         res = (col * col * self.k * eff)
-        return add_eng_res(inp, res)
+        return res
+
+
+class Wall(nn.Module):
+    val: Tensor
+    sgn: Tensor
+    k: Tensor
+
+    def __init__(self, col, sgn, val, k):
+        """
+        Args:
+            col: colvar function.
+            sgn: signature for each colvar.
+                 -1 -> restraint for negative value.
+                 1 -> restraint for positive value.
+            val: wall position.
+            k: spring constant.
+        """
+        super().__init__()
+        self.col = col
+        self.register_buffer('val', torch.tensor(val))
+        self.register_buffer('sgn', torch.tensor(sgn))
+        self.register_buffer('k', torch.tensor(k))
+
+    def forward(self, inp: Dict[str, Tensor]):
+        col: Tensor = self.col(inp) - self.val
+        # col.size() == (n_bch, n_col)
+        assert col.dim() == 2
+        assert col.size(0) == inp[p.pos].size(0)
+        eff = (col.sign() * self.sgn[None, :]) > 0
+        res = (col * col * col * col * self.k[None, :] * eff)
+        return res
 
 
 class ClosePenalty(nn.Module):
@@ -82,10 +100,11 @@ class ClosePenalty(nn.Module):
         R = self.radius[ei] + self.radius[ej]
         mask = dis < R
         eng_bnd = k * (dis - R).pow(2) * mask
+        # eng_bnd = (k * (dis - R).pow(2)).masked_fill(dis > R, 0.0)
         n_bch, n_atm, _ = adj.spc.size()
         eng_atm = torch.index_add(
             torch.zeros((n_bch * n_atm)).to(inp[p.pos]),
             0, n * n_atm + i, eng_bnd
         ).view((n_bch, n_atm))
         eng_mol = eng_atm.sum(1)
-        return add_eng_res(inp, eng_mol.unsqueeze(1))
+        return eng_mol.unsqueeze(1)

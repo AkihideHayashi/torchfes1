@@ -1,7 +1,6 @@
-from .cases import add, batch, atoms, saves
+from .cases import add, batch, atoms, saves, saves_fine
 
 idt = 'identity_number'
-rst = 'should_reset'
 cel = 'cells'
 pbc = 'periodic_boundary_condition'
 elm = 'elements'
@@ -27,6 +26,7 @@ prs_res = 'pressure_restraint'
 sts = 'stress_total'
 sts_mol = 'stress_force_field'
 sts_res = 'stress_restraint'
+rpm_kin = 'ring_polymer_kinetic_energy'
 
 mom = 'momenta'
 mas = 'masses'
@@ -36,15 +36,22 @@ stp = 'steps'
 dtm = 'delta_times'
 chg = 'charge'
 
+eig_vec = 'eigen_vectors'
+eig_val = 'eigen_values'
+
+fix_msk = 'fix_mask'
+
 add([batch, saves, atoms], {
     elm, ent, pos, eng_atm, eng_atm_std, eng_atm_ens, frc, frc_mol, frc_res,
-    mom, mas, chg
+    mom, mas, chg, fix_msk, eig_vec
 })
 
 add([batch, saves], {
     idt, cel, pbc, num, num_sqt,
     eng, eng_mol, eng_mol_std, eng_mol_ens, eng_res,
-    prs, prs_mol, prs_res, sts, sts_mol, sts_res, kbt, tim, stp, dtm
+    prs, prs_mol, prs_res, sts, sts_mol, sts_res, kbt, tim, stp, dtm, eig_val,
 })
 
-add([batch], {rst})
+add([saves], {rpm_kin})
+
+add([saves_fine], {cel, pos, elm, pbc, eng, frc, tim})

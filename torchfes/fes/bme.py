@@ -2,7 +2,7 @@ from typing import Dict
 import torch
 from torch import nn, Tensor
 from .. import properties as p
-from ..utils import grad
+from ..utils import grad, requires_grad, detach
 
 
 def jacobian(fun: Tensor, pos: Tensor, create_graph: bool):
@@ -50,36 +50,40 @@ def bme_postprocess(lmd: Tensor, ktg: Tensor, fix: Tensor):
 
 
 class BMEJac(nn.Module):
-    def __init__(self, create_graph: bool):
+
+    def __init__(self, col_var: nn.Module, requires_ktg_fix: bool):
         super().__init__()
-        self.create_graph = create_graph
+        self.col_var = col_var
+        self.create_graph = requires_ktg_fix
+        if not requires_ktg_fix:
+            self.ktg_fix = None
+        else:
+            self.ktg_fix = BMEKTGFix(col_var)
 
     def forward(self, inp: Dict[str, Tensor]):
-        out = inp.copy()
-        con = out[p.col_var] - out[p.col_cen]
-        if p.bme_mul_tmp not in out:
-            out[p.bme_mul_tmp] = torch.zeros_like(con)
+        out = requires_grad(inp, [p.pos])
+        con = self.col_var(out) - inp[p.con_cen]
+        if p.con_mul_tmp not in out:
+            out[p.con_mul_tmp] = torch.zeros_like(con)
         jac = jacobian(con, out[p.pos], self.create_graph)
-        out[p.col_jac] = jac
-        return out
+        out[p.con_jac] = jac
+        if self.ktg_fix is not None:
+            out = self.ktg_fix(out)
+        return detach(out)
 
 
 class BMEKTGFix(nn.Module):
-    msk: Tensor
-
-    def __init__(self, msk: Tensor):
+    def __init__(self, col_var: nn.Module):
         super().__init__()
-        self.register_buffer('msk', msk)
+        self.col_var = col_var
 
     def forward(self, inp: Dict[str, Tensor]):
-        msk = self.msk
         out = inp.copy()
-        col_jac = out[p.col_jac][:, msk, :, :]
-        mmt = bme_mmt(out[p.mas], col_jac)
+        mmt = bme_mmt(out[p.mas], out[p.con_jac])
         mmt_det = mmt.det()
         fix = fixman(mmt_det)
         ktg = bme_ktg(out[p.pos], out[p.mas], out[p.kbt],
-                      col_jac, mmt, mmt_det)
+                      out[p.con_jac], mmt, mmt_det)
         out = inp.copy()
         out[p.bme_ktg_tmp] = ktg.detach()
         out[p.bme_fix_tmp] = fix.detach()
@@ -87,17 +91,18 @@ class BMEKTGFix(nn.Module):
 
 
 class BMEShk(nn.Module):
-    def __init__(self, col_var: nn.Module, msk: Tensor,
-                 tol: float, debug=None):
+    def __init__(self, col_var: nn.Module, tol: float, debug=None):
         super().__init__()
-        self.msk = msk
         self.col_var = col_var
         self.tol = tol
         self.debug = debug
 
     def forward(self, inp: Dict[str, Tensor]):
-        msk = self.msk
-        jac_con = inp[p.col_jac][:, msk, :, :]
+        if p.con_jac not in inp:
+            return inp
+        if p.con_mul_tmp not in inp:
+            return inp
+        jac_con = inp[p.con_jac]
         pos = inp[p.pos].clone()
         mom = inp[p.mom].clone()
         out = inp.copy()
@@ -107,11 +112,10 @@ class BMEShk(nn.Module):
         i = 0
         while True:
             lmd.requires_grad_(True)
-            frc = -(lmd[:, msk, None, None] * jac_con).sum(1)
+            frc = -(lmd[:, :, None, None] * jac_con).sum(1)
             out[p.pos] = pos + frc / mas * dtm * dtm
             out[p.mom] = mom + frc * dtm
-            out = self.col_var(out)
-            con = (out[p.col_var] - out[p.col_cen])[:, msk]
+            con = self.col_var(out) - out[p.con_cen]
             if con.abs().max() < self.tol:
                 break
             jac_con_lmd = jacobian(con, lmd, False)
@@ -124,7 +128,8 @@ class BMEShk(nn.Module):
         out[p.mom].detach_()
         if self.debug is not None:
             print(f'Shake converged after {i} steps.')
-        out[p.bme_mul_tmp] += lmd
+        out[p.con_mul_tmp] += lmd
+        # out[p.bme_frc] += frc
         return out
 
 
@@ -147,7 +152,7 @@ class BMERtl(nn.Module):
         out = inp.copy()
         mas = out[p.mas][:, :, None]
         dtm = out[p.dtm][:, None, None]
-        jac_con_pos = inp[p.col_jac]
+        jac_con_pos = inp[p.con_jac]
         lmd = jac_con_pos.new_zeros(jac_con_pos.size()[:2])
         i = 0
         while True:
@@ -166,19 +171,29 @@ class BMERtl(nn.Module):
         out[p.mom].detach_()
         if self.debug is not None:
             print(f'Rattle converged after {i} steps.', file=self.debug)
-        out[p.bme_mul_tmp] += lmd
+        out[p.con_mul_tmp] += lmd
+        # out[p.bme_frc] += frc
         return out
 
 
-def bme_det_lmd(inp: Dict[str, Tensor], msk_bme: Tensor):
+def bme_det_lmd(inp: Dict[str, Tensor]):
     """Determine blue moon lambda."""
     out = inp.copy()
-    if p.bme_mul_tmp in out:
-        out[p.col_mul] = out[p.bme_mul_tmp]
-        out[p.bme_mul] = out[p.col_mul][:, msk_bme]
-        out[p.bme_mul_tmp] = torch.zeros_like(out[p.bme_mul_tmp])
+    if p.con_mul_tmp in out:
+        out[p.con_mul] = out[p.con_mul_tmp]
+        out[p.con_mul_tmp] = torch.zeros_like(out[p.con_mul_tmp])
     if p.bme_fix_tmp in out:
         out[p.bme_fix] = out[p.bme_fix_tmp]
     if p.bme_ktg_tmp in out:
         out[p.bme_ktg] = out[p.bme_ktg_tmp]
     return out
+
+
+class BMEDetLmd(nn.Module):
+    """Determine the Lagrangian multiplier, fixman correction and ktg.
+    The determination of the multiplier is delayed by one cycle.
+    In order to correct for the misalignment,
+    we save the correction term from the previous cycle."""
+
+    def forward(self, mol: Dict[str, Tensor]):
+        return bme_det_lmd(mol)

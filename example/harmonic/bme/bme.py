@@ -11,15 +11,14 @@ import pnpot
 import pointneighbor as pn
 
 
-class MyColVar(nn.Module):
+class ColVar(nn.Module):
     def __init__(self):
         super().__init__()
         self.pbc = torch.tensor([math.inf])
 
     def forward(self, inp: Dict[str, Tensor]):
         ret = inp[fes.p.pos][:, 0, 0][:, None]
-        assert ret.size(1) == 1
-        return fes.colvar.add_colvar(inp, ret)
+        return ret
 
 
 def make_inp():
@@ -31,9 +30,9 @@ def make_inp():
     pbc = torch.zeros([n_bch, n_dim], dtype=torch.bool)
     elm = torch.ones([n_bch, n_atm])
     mas = torch.ones([n_bch, n_atm])
-    inp = fes.inp.init_mol(cel, pbc, elm, pos, mas)
-    fes.inp.add_nvt(inp, 1.0 * fs, 300 * kB)
-    fes.inp.add_global_langevin(inp, 100.0 * fs)
+    inp = fes.mol.init_mol(cel, pbc, elm, pos, mas)
+    inp = fes.mol.add_nvt(inp, 1.0 * fs, 300 * kB)
+    inp = fes.mol.add_global_langevin(inp, 100.0 * fs)
     return inp
 
 
@@ -42,26 +41,23 @@ def main():
     trj_path = Path('trj')
     with fes.rec.TorchTrajectory(pre_path, 'rb') as f:
         mol = f[-1]
-        mol.pop(fes.p.rst)
     mode = 'wb'
     mdl = pnpot.classical.Quadratic(torch.tensor([1.0]))
-    my_colvar = MyColVar()
-    col = fes.colvar.ColVar([my_colvar])
+    col = ColVar()
     n_bch = mol[fes.p.pos].size(0)
-    mol[fes.p.col_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
-    eng = fes.ff.EvalEnergies(mdl, col=col)
+    mol[fes.p.con_cen] = torch.linspace(-0.5, 0.5, n_bch)[:, None]
     adj = fes.adj.SetAdjSftSpcVecSod(
         pn.Coo2FulSimple(1.0), [(fes.p.coo, 1.0)]
     )
+    evl = fes.ff.get_adj_eng_frc(adj, mdl)
     kbt = fes.md.GlobalLangevin()
-    msk_fix, _ = col[[my_colvar]]
-    msk_bme, _ = col[[my_colvar]]
-    dyn = fes.md.PTPQs(eng, adj, kbt, col, msk_fix, msk_bme, 1e-7, True)
+    dyn = fes.md.leap_frog(evl, kbt, col)
     timer = ignite.handlers.Timer()
+    mol = evl(mol)
     with fes.rec.open_trj(trj_path, mode) as rec:
         for _ in range(1000):
             mol = dyn(mol)
-            rec.put(fes.utils.detach(fes.data.filter_case(mol, fes.p.saves)))
+            rec.put(fes.data.filter_case(mol, fes.p.saves))
             tim = round(Decimal(timer.value()), 3)
             timer.reset()
             print(f'{_} {tim}')

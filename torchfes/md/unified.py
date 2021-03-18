@@ -18,6 +18,8 @@ def updt_mom(inp: Dict[str, Tensor], stp: float):
     out = inp.copy()
     dtm = out[p.dtm][:, None, None]
     out[p.mom] = out[p.mom] + out[p.frc] * dtm * stp
+    if p.fix_msk in out:
+        out[p.mom].masked_fill_(out[p.fix_msk].squeeze(0), 0.0)
     return out
 
 
@@ -26,6 +28,9 @@ def updt_pos(inp: Dict[str, Tensor], stp: float):
     dtm = out[p.dtm][:, None, None]
     mas = out[p.mas][:, :, None]
     out[p.pos] = out[p.pos] + out[p.mom] * dtm / mas * stp
+    if p.fix_msk in out:
+        out[p.pos] = torch.where(out[p.fix_msk].squeeze(0),
+                                 inp[p.pos], out[p.pos])
     return out
 
 
@@ -127,3 +132,40 @@ class GlobalNHC(nn.Module):
     def forward(self, inp: Dict[str, Tensor], stp: float):
         ddof = torch.zeros_like(inp[p.dtm], dtype=torch.int64)
         return update_global_nhc(inp, stp, self.nrespa, ddof)
+
+
+class UpdtKbt(nn.Module):
+    def __init__(self, kbt: nn.Module, stp: float):
+        super().__init__()
+        self.kbt = kbt
+        self.stp = stp
+
+    def forward(self, mol: Dict[str, Tensor]):
+        return self.kbt(mol, self.stp)
+
+
+class UpdtTim(nn.Module):
+    def __init__(self, stp: float):
+        super().__init__()
+        self.stp = stp
+
+    def forward(self, mol: Dict[str, Tensor]):
+        return updt_tim(mol, self.stp)
+
+
+class UpdtMom(nn.Module):
+    def __init__(self, stp: float):
+        super().__init__()
+        self.stp = stp
+
+    def forward(self, mol: Dict[str, Tensor]):
+        return updt_mom(mol, self.stp)
+
+
+class UpdtPos(nn.Module):
+    def __init__(self, stp: float):
+        super().__init__()
+        self.stp = stp
+
+    def forward(self, mol: Dict[str, Tensor]):
+        return updt_pos(mol, self.stp)

@@ -1,9 +1,14 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import torch
 from torch import Tensor, nn
 
 from .. import properties as p
+# from ..md.md import (AdjEvl, EvalEnergies, EvalEnergiesForces, Reset,
+#                      BMEAdjEvl, BMEShk)
+from ..md.unified import UpdtMom, UpdtPos, UpdtTim
+from ..forcefield import EvlAdjEngFrc
+from ..fes.bme import BMEShk, BMEJac
 
 
 def _fnorm(x: Tensor, dim: int = 1):
@@ -35,6 +40,7 @@ class FIRE(nn.Module):
         f_dec: f_dec. 0 < f_dec < 1
         dtm_max: \Delta t_max. 0 < dtm_max
     """
+
     def __init__(self, dtm_max: float, a0: float = 0.1, n_min: int = 5,
                  f_a: float = 0.99, f_inc: float = 1.1, f_dec: float = 0.5):
         super().__init__()
@@ -75,3 +81,15 @@ class FIRE(nn.Module):
         out[p.mom] = vel_new * out[p.mas][:, :, None]
         out[p.dtm] = dtm
         return out
+
+
+def fire(evl: EvlAdjEngFrc, fire: FIRE, col=None, tol=1e-4):
+    mom = UpdtMom(1.0)
+    pos = UpdtPos(1.0)
+    tim = UpdtTim(1.0)
+    if col is None:
+        return nn.Sequential(mom, pos, tim, evl, fire)
+    else:
+        shk = BMEShk(col, tol)
+        jac = BMEJac(col, False)
+        return nn.Sequential(mom, pos, shk, tim, evl, fire, jac)

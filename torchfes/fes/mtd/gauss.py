@@ -34,6 +34,7 @@ def _gaussian_inner(L, a, c, h, x):
     # L, a, c, x: bch, mtd, dim, pbc
     # h: bch, mtd
     al2 = a * L * L
+    al2.masked_fill_(a <= 0, math.inf)
     max_n = math.ceil(math.sqrt(2 * get_log_max(al2) / al2.min().item()))
     n = torch.arange(-max_n, max_n + 1, dtype=x.dtype,
                      device=x.device)[None, None, None, :]
@@ -60,18 +61,18 @@ def gaussian(hil: Dict[str, Tensor], pbc: Tensor, col: Tensor):
 
 
 class GaussianPotential(nn.Module):
-    msk: Tensor
     pbc: Tensor
 
-    def __init__(self, msk: Tensor, pbc: Tensor):
+    def __init__(self, col: nn.Module):
         super().__init__()
-        self.register_buffer('msk', msk)
-        self.register_buffer('pbc', pbc)
+        self.col = col
+        if not isinstance(col.pbc, Tensor):
+            raise KeyError(type(col.pbc))
+        self.register_buffer('pbc', col.pbc)
 
     def forward(self, inp: Dict[str, Tensor]):
         if p.mtd_cen in inp:
-            col = inp[p.col_var][:, self.msk]
-            pbc = self.pbc
-            return gaussian(inp, pbc, col)[:, None]
+            col = self.col(inp)
+            return gaussian(inp, self.pbc, col)[:, None]
         else:
             return torch.zeros_like(inp[p.eng_mol])[:, None]

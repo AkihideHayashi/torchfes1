@@ -1,18 +1,13 @@
 import math
-from typing import Dict, List
+from typing import Dict, Union, List
 import torch
 from torch import nn, Tensor
 from .. import properties as p
-from .multicolvar import add_colvar
 
 
-def fix(idx: List[int], num_dim: int = 3):
-    return FixGen(Fix(torch.tensor(idx), num_dim))
-
-
-def fix_msk(idx: Tensor, size: List[int]):
-    msk = torch.zeros(size, dtype=torch.bool, device=idx.device)
-    assert len(size) == 2
+def fix_msk(mol: Dict[str, Tensor], idx: Tensor):
+    _, atm, dim = mol[p.pos].size()
+    msk = torch.zeros([atm, dim], dtype=torch.bool, device=idx.device)
     msk[idx, :] = True
     return msk
 
@@ -20,28 +15,34 @@ def fix_msk(idx: Tensor, size: List[int]):
 class Fix(nn.Module):
     idx: Tensor
 
-    def __init__(self, idx: Tensor, num_dim: int = 3):
+    def __init__(self, idx: Union[Tensor, List[int]]):
         super().__init__()
+        if isinstance(idx, list):
+            idx = torch.tensor(idx)
         self.register_buffer('idx', idx)
-        self.num_dim = num_dim
 
     def forward(self, mol: Dict[str, Tensor]):
-        size = list(mol[p.pos].size())[1:]
-        return fix_msk(self.idx, size)
+        out = mol.copy()
+        msk = fix_msk(mol, self.idx)[None, :, :]
+        if p.fix_msk not in out:
+            out[p.fix_msk] = msk
+        else:
+            out[p.fix_msk] = out[p.fix_msk] | msk
+        return out
 
 
 class FixGen(nn.Module):
     pbc: Tensor
+    idx: Tensor
 
-    def __init__(self, fix: Fix):
+    def __init__(self, idx: Union[Tensor, List[int]], num_dim: int):
         super().__init__()
-        self.fix = fix
-        n = fix.idx.numel() * fix.num_dim
+        if isinstance(idx, list):
+            idx = torch.tensor(idx, dtype=torch.long)
+        n = idx.numel() * num_dim
+        self.register_buffer('idx', idx)
         self.register_buffer('pbc', torch.ones(n) * math.inf)
 
     def forward(self, mol: Dict[str, Tensor]):
-        mol = mol.copy()
-        msk = self.fix(mol)
-        mol = add_colvar(mol, mol[p.pos][:, msk])
-        mol[p.fix_msk] = msk
-        return mol
+        msk = fix_msk(mol, self.idx)
+        return mol[p.pos][:, msk]

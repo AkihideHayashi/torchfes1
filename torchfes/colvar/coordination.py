@@ -5,7 +5,6 @@ from torch import nn, Tensor
 import pointneighbor as pn
 from ..adj import get_adj_sft_spc, vec_sod
 from .. import properties as p
-from .multicolvar import add_colvar
 
 
 def ravel1(idx: List[Tensor], siz: List[int]):
@@ -59,6 +58,10 @@ def rational_singularity(rd, nn, nd):
     return 0.5 * nn * (2 + (nn - nd) * (rd - 1)) / nd
 
 
+def _no_nan(x: Tensor):
+    return (x == x).all()
+
+
 class Rational(nn.Module):
     def __init__(self, d0, r0, nn, nd):
         super().__init__()
@@ -66,9 +69,10 @@ class Rational(nn.Module):
         self.register_buffer('r0', r0)
         self.register_buffer('nn', nn)
         self.register_buffer('nd', nd)
-        self.eps = 1e-3
+        self.eps = 1e-2
 
     def forward(self, eij, dst):
+        assert _no_nan(dst)
         rd = (dst - self.d0[eij]) / self.r0[eij]
         nn = self.nn[eij]
         nd = self.nd[eij]
@@ -76,7 +80,10 @@ class Rational(nn.Module):
         rat_singul = rational_singularity(rd, nn, nd)
         sing = (rd < 1 + self.eps) & (rd > 1 - self.eps)
         rat = torch.where(sing, rat_singul, rat_almost)
-        return rat.masked_fill(rd < 0, 1.0)
+        ret = rat.masked_fill(rd < 0, 1.0)
+        assert _no_nan(ret)
+        ret.masked_fill_(eij < 0, 0.0)
+        return ret
 
 
 def mollifier_inner(x, a, rc):
@@ -124,6 +131,7 @@ class Coordination(nn.Module):
         super().__init__()
         elm = -torch.ones([numel, numel], dtype=torch.long)
         dic: Dict[str, List[float]] = {}
+        n = 0
         for n, ((i, j), prp) in enumerate(items.items()):
             elm[i, j] = n
             elm[j, i] = n
@@ -144,7 +152,7 @@ class Coordination(nn.Module):
         ej = inp[p.elm][n, j]
         eij = self.elm[ei, ej]
         adapt = eij >= 0
-        vec, sod = vec_sod(inp, adj)
+        _, sod = vec_sod(inp, adj)
         dis: Tensor = sod[adapt].sqrt()
         eij = eij[adapt]
         coords = self.mod(eij, dis)
@@ -154,4 +162,72 @@ class Coordination(nn.Module):
                             dtype=sod.dtype, device=sod.device)
         coord.index_add_(0, idx, coords)
         ret = coord.view([n_bch, self.n]) / 2
-        return add_colvar(inp, ret)
+        return ret
+
+
+class SlabCoordination(nn.Module):
+    elm: Tensor
+    coef: Tensor
+    wz: Tensor
+    wr: Tensor
+    pbc: Tensor
+
+    def __init__(self, mod, numel: int, rc: float,
+                 items: Dict[
+                     Tuple[int, int],
+                     Tuple[List[float], Dict[str, float]]], dim: int = 2):
+        super().__init__()
+        elm = -torch.ones([numel, numel], dtype=torch.long)
+        dic: Dict[str, List[float]] = {}
+        wz = []
+        wr = []
+        n = 0
+        for n, ((i, j), (coef, prp)) in enumerate(items.items()):
+            elm[i, j] = n
+            for key, val in prp.items():
+                if key not in dic:
+                    dic[key] = []
+                dic[key].append(val)
+            wz.append(coef[0])
+            wr.append(coef[1])
+        self.register_buffer('elm', elm)
+        self.mod = mod(**{key: torch.tensor(val) for key, val in dic.items()})
+        self.rc = rc
+        self.n = n + 1
+        self.register_buffer('pbc', torch.full([self.n], inf))
+        self.register_buffer('wz', 0.5 / torch.tensor(wz).pow(2))
+        self.register_buffer('wr', 0.5 / torch.tensor(wr).pow(2))
+        self.dim = dim
+
+    def forward(self, inp: Dict[str, Tensor]):
+        num_bch = inp[p.elm].size(0)
+        adj = get_adj_sft_spc(inp, p.coo, self.rc)
+        n, i, j = pn.coo2_n_i_j(adj)
+        ei = inp[p.elm][n, i]
+        ej = inp[p.elm][n, j]
+        eij = self.elm[ei, ej]
+        adapt = eij >= 0
+        vec, sod = vec_sod(inp, adj)
+        n, i, j = n[adapt], i[adapt], j[adapt]
+        vec, sod = vec[adapt], sod[adapt]
+        ei, ej, eij = ei[adapt], ej[adapt], eij[adapt]
+        zij = -vec[:, self.dim]
+        wij = torch.exp(-self.wz[eij] * zij) * torch.exp(-self.wr[eij] * sod)
+        i_max = i.max() + 5
+        ni = n * i_max + i
+        unique, idx, cou = torch.unique_consecutive(
+            ni, return_inverse=True, return_counts=True)
+        cum = pn.fn.cumsum_from_zero(cou)
+        den = torch.zeros_like(unique, dtype=wij.dtype)
+        den.index_add_(0, idx, wij)
+        num = torch.zeros_like(unique, dtype=wij.dtype)
+        num.index_add_(0, idx, wij * zij)
+        zij_ = num / den
+        eij_ = eij[cum]
+        n_ = n[cum]
+        cij_ = self.mod(eij_, zij_)
+        idx_ = n_ * self.n + eij_
+        ret = torch.zeros([num_bch * self.n],
+                          device=n.device, dtype=cij_.dtype)
+        ret.index_add_(0, idx_, cij_)
+        return ret.view([num_bch, self.n])

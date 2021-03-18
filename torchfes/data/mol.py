@@ -12,11 +12,26 @@ DLOT = Dict[str, List[Optional[Tensor]]]
 LDT = List[Dict[str, Tensor]]
 
 
+def _len_dt(dt: DT):
+    n = 0
+    for key, val in dt.items():
+        assert key in batch
+        if n in (0, 1):
+            n = val.size(0)
+        else:
+            assert val.size(0) in (n, 1)
+    return n
+
+
 def dt_to_dlt(dt: DT):
     new: DLT = {}
-    for key in dt:
+    n = _len_dt(dt)
+    for key, val in dt.items():
         assert key in batch
-        new[key] = list(dt[key].unsqueeze(0).unbind(1))
+        if val.size(0) == 1:
+            new[key] = [val for _ in range(n)]
+        else:
+            new[key] = list(dt[key].unsqueeze(0).unbind(1))
     return new
 
 
@@ -49,7 +64,7 @@ def _keys_ldt(ldt: LDT):
 def ldt_to_dlot(ldt: LDT):
     keys = _keys_ldt(ldt)
     for key in keys:
-        assert key in batch
+        assert key in batch, key
     new: DLOT = {key: [] for key in keys}
     for mo in ldt:
         for key in keys:
@@ -84,6 +99,8 @@ def filter_case(mol: Dict[str, Tensor], case: Set[str]):
 
 
 def pak_atm(mol: Dict[str, Tensor]):
+    if p.ent not in mol:
+        return mol
     ret: Dict[str, Tensor] = {}
     ent = mol[p.ent].squeeze(0)
     assert ent.dim() == 1
@@ -212,7 +229,7 @@ class Unbind(nn.Module):
         for dt in ldt:
             for pp in self.pp:
                 dt = pp(dt)
-            new.append(pp(dt))
+            new.append(dt)
         return new
 
 

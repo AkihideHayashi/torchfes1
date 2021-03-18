@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 from .convert import from_atoms
 from .mol import cat
+from ..mol import add_basic
 
 
 class ToDictTensor:
@@ -23,4 +24,5 @@ class ToDictTensor:
                 assert isinstance(data[key], Tensor), (key, type(data[key]))
                 if self.default_precision:
                     data[key] = torch.tensor(data[key].tolist())
+            data = add_basic(data)
             return data

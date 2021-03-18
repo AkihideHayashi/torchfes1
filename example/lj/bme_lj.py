@@ -154,7 +154,7 @@ def main():
             tim = round(decimal.Decimal(tim), 1)
             eng = round(decimal.Decimal(inp[p.eng].item() / Ha), 10)
             if bme:
-                lmd = round(decimal.Decimal(inp[p.bme_lmd].item() / Ha), 7)
+                lmd = round(decimal.Decimal(inp[p.con_mul].item() / Ha), 7)
                 print(f'{tim:>5} {eng:> 7} {lmd:> 7}')
             else:
                 print(f'{tim:>5} {eng:> 7}')
